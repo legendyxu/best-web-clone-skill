@@ -1,0 +1,36 @@
+[first_sentence]
+
+```copy behavior
+
+Do not miss a single section, I need you to copy every section and UI
+
+Internally gauge if attached CSS style is enough to make your clone look identical to reference image, if not you need to fix the missing part.
+
+you clone needs to be quality first, and quality-max. if you create an UI using code while a web UI image makes it look better, you are not doing right(e.g. origianl website has complex isometric real UI but your copied it as a simple UI using code, it is a failure)
+
+internally make sure the overall vibe, UX is good. This is more important than being "identical" even though they don't conflict
+
+Make the you perfectly copied the thickness of the original design
+
+Make sure all your design languages are "visible" by the user
+
+Make sure you perfectly maintain the "register" of the original design (register as if in english language)
+
+Note, THIS IS EXTREMELY IMPORTANT: Deconstruct the design into a strict system of nested flex/grid containers, ensuring distinct bounding boxes and standardized spacing for every element. Treat the visual output as a rigid assembly of isolated components rather than a loose document flow to replicate a structured, engineered architecture
+
+The clone needs to be 100% mobile compatible
+```
+
+
+CSS Style:
+
+```
+
+[css_text]
+
+```
+
+---put your cloned website in a single html file
+always share your thoughts before the code
+
+

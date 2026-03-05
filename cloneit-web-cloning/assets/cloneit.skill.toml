@@ -1,0 +1,36 @@
+[runtime]
+install_playwright = true
+verify_browser_launch = true
+package_install_timeout_seconds = 900
+browser_install_timeout_seconds = 1200
+pip_network_timeout_seconds = 45
+pip_retries = 2
+
+[capture_matrix]
+viewport_width = 1920
+viewport_height = 1080
+initial_wait_ms = 1800
+scroll_step_px = 720
+scroll_pause_ms = 140
+scroll_cap_px = 40000
+include_video = true
+headed = false
+
+[replica_forge]
+gemini_model = "gemini-3.1-pro-preview"
+thinking_level = "high"
+max_output_tokens = 100000
+temperature = 1.0
+system_prompt_file = "prompts/clone.system_prompt.txt"
+system_prompt = ""
+prompt_template_file = "prompts/clone.pass1.prompt_template.txt"
+prompt_template = ""
+
+[artifact_map]
+manifest = "run_manifest.txt"
+snapshot = "source_snapshot.png"
+styles = "source_styles.css"
+video = "source_scroll.webm"
+replica = "web_replica.html"
+legacy_aliases = true
+
