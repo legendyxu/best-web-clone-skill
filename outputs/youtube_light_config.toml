@@ -1,0 +1,40 @@
+[runtime]
+install_playwright = false
+verify_browser_launch = false
+
+[capture_matrix]
+viewport_width = 1366
+viewport_height = 768
+initial_wait_ms = 1200
+scroll_step_px = 600
+scroll_pause_ms = 120
+scroll_cap_px = 6000
+include_video = false
+headed = false
+
+[replica_forge]
+gemini_model = "gemini-3.1-pro-preview"
+thinking_level = "high"
+max_output_tokens = 20000
+temperature = 0.8
+system_prompt_file = ""
+system_prompt = ""
+prompt_template_file = ""
+prompt_template = """
+[first_sentence]
+
+Use only the screenshot as the primary source.
+Do not include long raw stylesheet dumps.
+Create a standalone HTML file with embedded CSS and minimal JS.
+Preserve the overall visual hierarchy of the captured page.
+Ensure responsive behavior for desktop and mobile widths.
+Return only valid HTML.
+"""
+
+[artifact_map]
+manifest = "run_manifest.txt"
+snapshot = "source_snapshot.png"
+styles = "source_styles.css"
+video = "source_scroll.webm"
+replica = "web_replica.html"
+legacy_aliases = true

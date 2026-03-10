@@ -1,26 +1,36 @@
 ---
 name: prompt-expander
-description: Expands vague user webpage requests into detailed, production-ready prompts for webpage cloning or generation workflows. Use when users provide short, casual, or non-technical website descriptions and you need a structured prompt before generating code.
+description: Expands user-written raw webpage prompts into detailed, production-ready prompts for webpage generation workflows. Use when users ask to call this skill, request prompt optimization/expansion, or provide short non-technical website ideas before code generation.
 ---
 
-# Prompt Expander - Webpage Generation
+# Prompt Expander
 
-Convert a short user request into a detailed, AI-ready webpage prompt before code generation.
+Convert a raw user prompt into a structured, high-fidelity prompt before webpage code generation.
 
-## When To Trigger
+## Trigger Rules
 
-Use this skill before generating webpage code when user input is vague, short, or casual, for example:
-- "I want a music website"
-- "Make me a travel agency page"
-- "Build a homepage for my student club"
+Trigger this skill in either mode:
 
-If the user request is already specific and technical, this skill is optional.
+1. Explicit invocation (highest priority)
+   - User says: "call prompt-expander", "use prompt-expander", "expand my prompt", "optimize this prompt"
+2. Implicit invocation
+   - User gives a short/casual website request and asks for generation
+
+Do not generate webpage code before prompt expansion is completed and approved.
+
+## Input Contract
+
+Expected user input:
+- Required: raw prompt text (the user's original intention)
+- Optional: constraints for style, sections, audience, features, brand tone, and must-keep details
+
+If required details are missing, ask up to 3 short clarifying questions, then continue.
 
 ## Workflow
 
 ### Step 1: Identify Website Type
 
-Classify the request into one primary type:
+Classify into one primary type:
 
 | Type | Common Keywords |
 |------|------------------|
@@ -54,20 +64,19 @@ Use it to choose:
 - common content structure
 - common interaction patterns
 
-### Step 3: Extract User Preferences
+### Step 3: Extract User Constraints
 
 From the user message, extract:
-- colors/theme (e.g. black background, light, minimal)
-- style mood (elegant, playful, professional, bold)
-- specific content/domain hints (artists, destinations, products, members)
-- required features (booking, search, map, filter, timeline, etc.)
+- hard constraints (must keep): colors, style words, forbidden elements
+- content constraints: named entities, domain items, priority sections
+- feature constraints: booking, search, map, filter, timeline, player, etc.
 - audience and tone
 
 If details are missing, use modern defaults appropriate for the chosen type.
 
 ### Step 4: Build Expanded Prompt
 
-Use this output template:
+Use this template:
 
 ```markdown
 I want to create a [WEBSITE TYPE] webpage.
@@ -102,29 +111,39 @@ I want to create a [WEBSITE TYPE] webpage.
 - Primary CTA: [...]
 ```
 
-### Step 5: Confirm Before Generation
+### Step 5: Quality Gate
 
-After presenting the expanded prompt, ask:
+Before returning:
+- ensure no vague words (for example: "nice", "good", "cool")
+- ensure explicit user intent is preserved
+- ensure at least one concrete inspiration and concrete content examples
+- ensure responsive requirement is present
+
+### Step 6: Confirm Before Generation
+
+After presenting the expanded prompt, always ask:
 
 > "Does this capture what you're looking for? You can adjust any details before I generate the webpage."
 
 Only proceed to webpage generation after user approval.
 
-## Quality Rules
-
-- Do not use vague phrases like "nice colors" or "good layout"
-- Preserve explicit user intent (never overwrite hard requirements)
-- Include concrete examples relevant to the domain
-- Match common industry conventions for the selected site type
-- Scale complexity to request size (simple site -> fewer sections)
-
 ## Output Contract
 
-When returning results for this skill, always provide:
-1. inferred website type (+ assumptions if needed)
-2. extracted user preferences
-3. final expanded prompt
-4. confirmation question before code generation
+Always return these 4 blocks:
+1. inferred website type (+ assumptions)
+2. extracted constraints
+3. expanded final prompt
+4. confirmation question before generation
+
+## Explicit Invocation Examples
+
+Example 1:
+- User: "call prompt-expander: make a dark music website for indie artists"
+- Skill action: classify -> expand -> return final prompt -> request confirmation
+
+Example 2:
+- User: "use prompt-expander on this prompt: travel landing page for Japan cherry blossom tours"
+- Skill action: preserve user intent -> apply travel conventions -> return expanded prompt
 
 ## Additional Resource
 

@@ -1,0 +1,34 @@
+{
+  "schema": "web-replica-run/v1",
+  "created_at": "2026-03-11T00:58:30.902049",
+  "elapsed_seconds": 143.606572,
+  "source_url": "https://youtube.com",
+  "stages": [
+    "capture-matrix",
+    "replica-forge",
+    "artifact-sync"
+  ],
+  "config_path": "/home/lenovo/best-web-clone-skill/outputs/youtube_light_config.toml",
+  "artifacts": {
+    "manifest": "/home/lenovo/best-web-clone-skill/outputs/replica_youtube/run_manifest.txt",
+    "snapshot": "/home/lenovo/best-web-clone-skill/outputs/replica_youtube/source_snapshot.png",
+    "styles": "/home/lenovo/best-web-clone-skill/outputs/replica_youtube/source_styles.css",
+    "video": "",
+    "replica": "/home/lenovo/best-web-clone-skill/outputs/replica_youtube/web_replica.html",
+    "replica_prompt": "/home/lenovo/best-web-clone-skill/outputs/replica_youtube/web_replica.prompt.txt",
+    "replica_raw": "/home/lenovo/best-web-clone-skill/outputs/replica_youtube/web_replica.raw.txt",
+    "replica_response_json": "/home/lenovo/best-web-clone-skill/outputs/replica_youtube/web_replica.response.json"
+  },
+  "gemini": {
+    "model": "gemini-3.1-pro-preview",
+    "thinking_level": "high",
+    "max_output_tokens": 20000,
+    "temperature": 0.8,
+    "usage_tokens": {
+      "prompt_tokens": 1176,
+      "output_tokens": 8430,
+      "total_tokens": 16333
+    }
+  },
+  "legacy_aliases_written": true
+}
