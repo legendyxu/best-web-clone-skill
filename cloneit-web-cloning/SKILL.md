@@ -1,6 +1,6 @@
 ---
 name: web-replica-forge
-description: Self-contained workflow to clone an existing website URL into a single-file HTML replica using Gemini, including runtime bootstrap, dependency installation, package verification, browser verification, capture, and artifact generation. Use when users ask to clone/copy/recreate/mirror a website and need plug-and-play execution without external engine code.
+description: Self-contained workflow to clone an existing website URL into a single-file HTML replica using Gemini. Supports optional user instructions (short/vague OK) via built-in prompt-expander. Use when users ask to clone/copy/recreate/mirror a website.
 license: Apache-2.0
 ---
 
@@ -8,10 +8,15 @@ license: Apache-2.0
 
 Run a self-contained URL-to-replica pipeline with no dependency on external repository engine files.
 
+## Input
+
+- **URL** (required): Target webpage to clone
+- **Instructions** (optional): User preferences. If the brief is short or vague (e.g., "做成暗色主题", "简洁一点", "突出移动端"), the built-in prompt-expander will auto-expand it into a structured design brief. If the brief is already detailed, the skill will use it directly instead of expanding it again.
+
 ## Stage System (Custom Naming)
 
 - `capture-matrix`: browser capture, scrolling snapshot, stylesheet harvest, optional scroll video
-- `replica-forge`: Gemini generation of a single-file HTML replica
+- `replica-forge`: Gemini generation of a single-file HTML replica (with optional expanded user instructions)
 - `artifact-sync`: canonical artifact writing + compatibility aliases
 
 This skill intentionally does not use old pass naming.
@@ -90,6 +95,33 @@ python skills/skills/cloneit-web-cloning/scripts/clone_with_gemini.py \
   --no-include-video
 ```
 
+Clone with short/vague user instructions (prompt-expander will auto-expand them):
+
+```bash
+python cloneit-web-cloning/scripts/clone_with_gemini.py \
+  "https://example.com" \
+  --instructions "做成暗色主题，简洁一点"
+```
+
+Review the expanded prompt before clone generation:
+
+```bash
+python cloneit-web-cloning/scripts/clone_with_gemini.py \
+  "https://example.com" \
+  --instructions "做成暗色主题，简洁一点" \
+  --confirm-expanded-prompt
+```
+
+If you already reviewed `expanded_user_prompt.txt`, continue in non-interactive mode with:
+
+```bash
+python cloneit-web-cloning/scripts/clone_with_gemini.py \
+  "https://example.com" \
+  --instructions "做成暗色主题，简洁一点" \
+  --confirm-expanded-prompt \
+  --approve-expanded-prompt
+```
+
 ## Bundled Prompts (Secret Sauce)
 
 Prompt files are embedded in this skill:
@@ -97,6 +129,24 @@ Prompt files are embedded in this skill:
 - `assets/prompts/clone.pass1.prompt_template.txt`
 
 The runner loads these from `assets/cloneit.skill.toml` by default, so prompt behavior is portable.
+
+## Prompt Expander (Built-in)
+
+When `--instructions` is provided, the skill:
+1. Infers website type from the source URL and user brief
+2. Automatically decides whether the brief needs expansion
+3. If the brief is short/vague, expands it into a structured prompt with:
+   - visual style
+   - page sections
+   - content details
+   - interactions
+   - audience and tone
+4. If the brief is already detailed, keeps the user's original brief and uses it directly
+5. Saves the prepared prompt as `expanded_user_prompt.txt`
+6. Optionally pauses for explicit user confirmation when `--confirm-expanded-prompt` is used and auto-expansion actually happened
+7. Injects the prepared prompt into the final clone prompt used by Gemini
+
+This allows non-expert users to give short hints like "暗色" or "简洁" and still get a professional design direction, while not over-processing already detailed prompts.
 
 ## Artifact Contract
 
@@ -106,6 +156,7 @@ Primary artifacts:
 - `source_styles.css`
 - `source_scroll.webm` (when enabled)
 - `web_replica.html`
+- `expanded_user_prompt.txt` (when `--instructions` is provided; contains either the auto-expanded brief or the user's direct brief with a direct-use decision)
 
 Compatibility aliases are also written:
 - `output_manifest.txt`

@@ -20,6 +20,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import textwrap
 import tomllib
 import traceback
 import venv
@@ -27,6 +28,271 @@ from pathlib import Path
 from typing import Any, Optional
 
 RUNTIME_ENV = "WEB_REPLICA_RUNTIME_ACTIVE"
+
+SITE_TYPE_PROFILES: dict[str, dict[str, Any]] = {
+    "media": {
+        "display_name": "Media / Entertainment",
+        "default_aesthetic": "an immersive content-browsing experience with strong hierarchy, engaging thumbnails, and fast scanning for repeat viewing",
+        "default_color_scheme": "high-contrast media surfaces with one vibrant accent color and clear visual separation between content blocks",
+        "default_typography": "bold display headings paired with readable interface labels and compact card metadata",
+        "default_layout": "a hero-led layout with category navigation, featured rails, and repeatable thumbnail cards",
+        "inspiration": ["YouTube", "YouTube Music", "Spotify"],
+        "sections": [
+            ("Hero / Featured Banner", "Spotlight the most important content or campaign with clear artwork and an immediate play CTA"),
+            ("Primary Category Navigation", "Expose the most important browse categories above the fold"),
+            ("Featured Collections", "Show curated rows of playlists, themes, or creator-led collections"),
+            ("Popular Videos / Creators", "Use repeatable thumbnail cards with duration, title, and creator metadata"),
+            ("New & Recommended", "Surface newly released, trending, or recommended content blocks"),
+            ("Utility / Footer", "Keep support, help, account, and policy links easy to find"),
+        ],
+        "content_details": [
+            "Featured content — hero videos, trending uploads, themed playlists, and creator spotlights",
+            "Card metadata — thumbnail, title, creator/channel, duration, and lightweight engagement cues",
+            "Browse taxonomy — categories such as trending, favorites, genres, or featured topics",
+            "Visual language — artwork-led cards and strong thumbnail hierarchy",
+        ],
+        "features": [
+            "Prominent search and browse entry points for repeat discovery",
+            "Hover/tap affordances on cards, including quick-play or highlight states",
+            "Consistent thumbnail ratios and media metadata hierarchy",
+        ],
+        "audience": "people browsing video, music, or entertainment content",
+        "tone": "engaging, energetic, and easy to explore",
+        "cta": "start watching and discover more content",
+    },
+    "travel": {
+        "display_name": "Travel / Tourism",
+        "default_aesthetic": "trust-building travel browsing with aspirational imagery and clear decision support",
+        "default_color_scheme": "warm neutrals, sky tones, and accent colors that feel optimistic and travel-ready",
+        "default_typography": "clean headings with practical, readable supporting text",
+        "default_layout": "search-first hero followed by destinations, offers, and proof sections",
+        "inspiration": ["Airbnb", "Booking.com", "Expedia"],
+        "sections": [
+            ("Hero / Search", "Lead with destination discovery and an obvious search or booking action"),
+            ("Popular Destinations", "Show aspirational destination cards with strong imagery"),
+            ("Featured Offers", "Highlight packages, deals, or guided tours with concise benefit summaries"),
+            ("Trust Signals", "Use reviews, metrics, or guarantees to reduce booking hesitation"),
+            ("Travel Tips / Guides", "Support exploration with useful destination content"),
+            ("Footer / Contact", "Keep support, policies, and contact actions available"),
+        ],
+        "content_details": [
+            "Destination cards — location, image, short value cue, and price or offer framing",
+            "Booking cues — dates, travelers, quote requests, or availability summaries",
+            "Social proof — ratings, reviews, trust badges, and repeat-customer cues",
+        ],
+        "features": [
+            "Above-the-fold search or quote CTA",
+            "Map-aware browsing cues or location context",
+            "Mobile-first layout for quick travel browsing",
+        ],
+        "audience": "people researching trips, accommodations, or destination experiences",
+        "tone": "aspirational, trustworthy, and helpful",
+        "cta": "book now, explore, or request a quote",
+    },
+    "community": {
+        "display_name": "Community / Organization",
+        "default_aesthetic": "approachable, human, and real-photo-driven with clear participation cues",
+        "default_color_scheme": "friendly greens, blues, and grounded brand colors that feel welcoming",
+        "default_typography": "warm, readable headings with practical supporting copy",
+        "default_layout": "mission-led landing flow with events, people, and join actions",
+        "inspiration": ["Meetup", "university club pages", "nonprofit homepages"],
+        "sections": [
+            ("Hero / Mission", "Explain what the group is and why someone should join"),
+            ("About", "Summarize history, purpose, and differentiators"),
+            ("Activities / Events", "Show upcoming activities with dates and participation cues"),
+            ("Members / Team", "Feature organizers or members with role clarity"),
+            ("Gallery / Highlights", "Use real photos to show recent activity"),
+            ("Join / Contact", "Provide a clear application or contact action"),
+        ],
+        "content_details": [
+            "Event cards — date, title, location, summary, RSVP cue",
+            "Member cards — photo, name, role, and short intro",
+            "Milestones — achievements, years active, member count, or impact metrics",
+        ],
+        "features": [
+            "Prominent join or contact CTA",
+            "Easy-to-scan event list and announcements",
+            "Mobile-friendly layout for members checking updates on phones",
+        ],
+        "audience": "members, prospective members, supporters, or volunteers",
+        "tone": "welcoming, social, and credible",
+        "cta": "join the community or get involved",
+    },
+    "ecommerce": {
+        "display_name": "E-commerce / Product",
+        "default_aesthetic": "product-first merchandising with clear price hierarchy and conversion focus",
+        "default_color_scheme": "clean product surfaces with one strong merchandising accent",
+        "default_typography": "clear commerce typography optimized for scannability and pricing clarity",
+        "default_layout": "promo hero, category navigation, product grid, and trust-building merchandising sections",
+        "inspiration": ["Nike", "Zara", "Amazon", "Shopify stores"],
+        "sections": [
+            ("Promo Hero", "Lead with the strongest offer, collection, or bestseller"),
+            ("Category Navigation", "Expose product families with quick browse actions"),
+            ("Featured Products", "Use repeatable product cards with pricing and quick actions"),
+            ("Offer / Trust Banner", "Show shipping, returns, or time-limited promotions"),
+            ("Reviews / Social Proof", "Reassure buyers with ratings and testimonials"),
+            ("Footer / Policy Block", "Surface shipping, returns, FAQ, and support"),
+        ],
+        "content_details": [
+            "Product cards — image, name, price, sale state, rating, add-to-cart",
+            "Category tiles — strong image plus clear browse CTA",
+            "Trust content — returns, shipping, guarantees, or sustainability claims",
+        ],
+        "features": [
+            "Sticky shopping controls such as cart or filters",
+            "Clear discount and pricing hierarchy",
+            "Fast browse-to-product transitions with quick action states",
+        ],
+        "audience": "shoppers comparing products and deciding what to buy",
+        "tone": "confident, clear, and conversion-oriented",
+        "cta": "shop now or add to cart",
+    },
+    "portfolio": {
+        "display_name": "Portfolio / Personal",
+        "default_aesthetic": "brand-forward self-presentation with clear project storytelling and personality",
+        "default_color_scheme": "personal-brand colors chosen to reflect craft and point of view",
+        "default_typography": "high-identity headings paired with restrained supporting copy",
+        "default_layout": "intro hero followed by work samples, background, and contact sections",
+        "inspiration": ["Awwwards portfolios", "Dribbble profiles", "GitHub Pages portfolios"],
+        "sections": [
+            ("Intro Hero", "State identity, role, and strongest positioning statement"),
+            ("About", "Explain background, process, or differentiators"),
+            ("Projects / Work", "Show the most important case studies or project cards"),
+            ("Skills / Experience", "Summarize craft areas, tools, or timeline milestones"),
+            ("Testimonials / Recognition", "Use quotes or awards to add credibility"),
+            ("Contact", "End with direct outreach actions and external links"),
+        ],
+        "content_details": [
+            "Project cards — visual preview, title, summary, stack, and link out",
+            "Experience items — role, timeframe, and impact summary",
+            "Branding cues — headshot, monogram, visual motifs, or signature colors",
+        ],
+        "features": [
+            "Strong project-card interactions and hover reveals",
+            "Clear external links to portfolio destinations or social profiles",
+            "Responsive layout that preserves project storytelling on mobile",
+        ],
+        "audience": "clients, employers, collaborators, or community peers",
+        "tone": "confident, distinctive, and polished",
+        "cta": "view work or get in touch",
+    },
+    "food": {
+        "display_name": "Food / Restaurant",
+        "default_aesthetic": "appetite-led hospitality design with strong atmosphere and menu storytelling",
+        "default_color_scheme": "warm restaurant tones with rich contrast and food-friendly accents",
+        "default_typography": "expressive headings with easy menu readability",
+        "default_layout": "atmosphere hero, menu highlights, and reservation/order flow",
+        "inspiration": ["premium bistro sites", "restaurant brand pages", "menu-first dining pages"],
+        "sections": [
+            ("Atmosphere Hero", "Set the mood and lead to reserve or order actions"),
+            ("Restaurant Story", "Explain cuisine, concept, or chef point of view"),
+            ("Menu Highlights", "Show standout dishes with photography and descriptions"),
+            ("Menu Categories", "Organize food and drinks into browsable groups"),
+            ("Reservations / Ordering", "Keep the main conversion path obvious"),
+            ("Location / Hours", "Provide visit details and confidence cues"),
+        ],
+        "content_details": [
+            "Dish cards — image, dish name, description, price, dietary tags",
+            "Atmosphere content — interior, chef, plating, service moments",
+            "Visit info — address, hours, reservation cues, or delivery options",
+        ],
+        "features": [
+            "Obvious reserve or order CTA above the fold",
+            "Readable menu presentation on mobile",
+            "High-quality imagery that does most of the persuasive work",
+        ],
+        "audience": "diners deciding whether to visit, reserve, or order",
+        "tone": "inviting, flavorful, and premium",
+        "cta": "reserve a table or order now",
+    },
+    "corporate": {
+        "display_name": "Corporate / Business",
+        "default_aesthetic": "professional, high-trust marketing design with clear value hierarchy",
+        "default_color_scheme": "calm business neutrals with one assertive brand accent",
+        "default_typography": "clean, authoritative headings with clear functional copy",
+        "default_layout": "value-proposition hero followed by services, proof, and conversion sections",
+        "inspiration": ["Stripe", "Notion", "HubSpot", "Linear"],
+        "sections": [
+            ("Value Proposition Hero", "Explain what the company does and why it matters"),
+            ("Services / Product Overview", "Break offerings into concise, scannable cards"),
+            ("How It Works", "Show a clear process or onboarding sequence"),
+            ("Social Proof / Results", "Use logos, metrics, and testimonials"),
+            ("Resources / Case Studies", "Back up claims with deeper proof"),
+            ("Contact / CTA", "End with a direct demo, contact, or signup action"),
+        ],
+        "content_details": [
+            "Service cards — title, summary, and business benefit",
+            "Results content — metrics, case studies, client logos, or testimonial quotes",
+            "Conversion cues — demo CTA, contact CTA, or free-trial framing",
+        ],
+        "features": [
+            "Strong above-the-fold CTA hierarchy",
+            "Clear informational structure for scanning and trust building",
+            "Responsive layout suitable for busy decision-makers on mobile",
+        ],
+        "audience": "buyers, leads, executives, or stakeholders evaluating a solution",
+        "tone": "credible, clear, and outcome-driven",
+        "cta": "book a demo, talk to sales, or get started",
+    },
+    "event": {
+        "display_name": "Event / Landing Page",
+        "default_aesthetic": "high-energy landing design focused on urgency, information, and conversion",
+        "default_color_scheme": "bold event colors with strong contrast and standout CTA emphasis",
+        "default_typography": "large-impact headings with dense but readable schedule information",
+        "default_layout": "hero-first landing page with agenda, speakers, and registration emphasis",
+        "inspiration": ["conference pages", "festival pages", "launch landing pages"],
+        "sections": [
+            ("Hero / Event Header", "State event name, timing, and main registration action"),
+            ("Overview", "Explain who it is for and why it matters"),
+            ("Speakers / Performers", "Feature the people that drive interest"),
+            ("Agenda / Schedule", "Organize timing and sessions clearly"),
+            ("Tickets / Registration", "Make conversion options obvious and comparable"),
+            ("FAQ / Venue", "Reduce friction around attendance details"),
+        ],
+        "content_details": [
+            "Speaker cards — photo, role, topic, and credibility",
+            "Agenda rows — time, title, stage/room, and presenter",
+            "Ticket tiers — benefits, pricing, and urgency cues",
+        ],
+        "features": [
+            "Single clear conversion goal with repeated CTA exposure",
+            "Urgency cues such as countdown, limited spots, or early-bird framing",
+            "Mobile-friendly flow for shareable event traffic",
+        ],
+        "audience": "attendees deciding whether to register or participate",
+        "tone": "energetic, urgent, and exciting",
+        "cta": "register now or get tickets",
+    },
+    "other": {
+        "display_name": "Other / Unknown",
+        "default_aesthetic": "clear, modern, category-agnostic product presentation with flexible card-based content",
+        "default_color_scheme": "clean light background, one strong accent color, and readable neutral text",
+        "default_typography": "readable sans-serif hierarchy with clear section contrast",
+        "default_layout": "hero-first flow with offer explanation, featured content, proof, and CTA sections",
+        "inspiration": ["The Verge", "Coursera", "Zillow", "Peloton"],
+        "sections": [
+            ("Hero / Above the Fold", "Clearly state the main promise and primary action"),
+            ("What We Offer", "Break the offer into concise, scannable value blocks"),
+            ("Featured Content / Showcase", "Use the main cards, listings, or modules people browse"),
+            ("Social Proof", "Support trust with numbers, reviews, or partners"),
+            ("How It Works", "Clarify the main workflow if onboarding matters"),
+            ("CTA / Footer", "Provide the next step plus support and legal links"),
+        ],
+        "content_details": [
+            "Core cards — the main browsable items on the page, presented with strong hierarchy",
+            "Proof elements — reviews, metrics, trust badges, or partner references",
+            "Utility content — onboarding cues, secondary links, FAQ, or support access",
+        ],
+        "features": [
+            "Clear above-the-fold CTA and readable section hierarchy",
+            "Card-based browsing patterns that remain coherent on mobile",
+            "Trust-building copy and layout defaults when the category is unclear",
+        ],
+        "audience": "general users exploring the page for value and next steps",
+        "tone": "clear, modern, and trustworthy",
+        "cta": "learn more, explore, or get started",
+    },
+}
 
 
 def _read_text(path: Path) -> str:
@@ -382,14 +648,453 @@ def _capture_matrix(
         shutil.rmtree(video_tmp, ignore_errors=True)
 
 
-def _build_replica_prompt(prompt_template: str, css_text: str) -> str:
+def _contains_any(text: str, keywords: tuple[str, ...]) -> bool:
+    lower = text.lower()
+    return any(keyword in lower for keyword in keywords)
+
+
+def _dedupe_keep_order(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in items:
+        normalized = item.strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        out.append(normalized)
+    return out
+
+
+def _infer_site_type_from_url(url: str) -> str:
+    """Infer website type from a source URL."""
+    lower = url.lower()
+    if _contains_any(
+        lower,
+        (
+            "spotify",
+            "apple.com/music",
+            "tidal",
+            "soundcloud",
+            "youtube.com",
+            "youtu.be",
+            "youtube.",
+            "bilibili",
+            "b23.tv",
+            "vimeo",
+            "netflix",
+            "twitch",
+        ),
+    ):
+        return "media"
+    if _contains_any(lower, ("airbnb", "booking", "expedia", "getyourguide", "viator", "travel", "trip")):
+        return "travel"
+    if _contains_any(lower, ("club", "meetup", "nonprofit", "society")):
+        return "community"
+    if _contains_any(lower, ("shop", "store", "amazon", "nike", "zara", "asos", "taobao", "tmall")):
+        return "ecommerce"
+    if _contains_any(lower, ("portfolio", "dribbble", "github.io", "behance")):
+        return "portfolio"
+    if _contains_any(lower, ("restaurant", "cafe", "menu", "nobu", "food", "bakery")):
+        return "food"
+    if _contains_any(lower, ("stripe", "linear", "notion", "hubspot", "saas", "agency", "slack", "atlassian")):
+        return "corporate"
+    if _contains_any(lower, ("event", "conference", "ted.com", "festival", "summit", "launch")):
+        return "event"
+    return "other"
+
+
+def _infer_site_type_from_request(url: str, raw_instructions: str) -> str:
+    url_guess = _infer_site_type_from_url(url)
+    if url_guess != "other":
+        return url_guess
+
+    lower = raw_instructions.lower()
+    keyword_map: dict[str, tuple[str, ...]] = {
+        "media": ("music", "video", "podcast", "stream", "radio", "视频网站", "视频", "动画", "卡通", "儿歌"),
+        "travel": ("travel", "trip", "hotel", "tour", "destination", "agency", "旅游", "旅行", "酒店"),
+        "community": ("club", "society", "association", "team", "nonprofit", "school", "社团", "社区", "组织"),
+        "ecommerce": ("shop", "store", "product", "buy", "sell", "marketplace", "商店", "商城", "电商"),
+        "portfolio": ("portfolio", "resume", "personal", "freelance", "artist", "作品集", "个人主页"),
+        "food": ("restaurant", "cafe", "food", "menu", "bakery", "bar", "餐厅", "咖啡", "菜单"),
+        "corporate": ("company", "startup", "saas", "consulting", "agency", "企业", "公司", "官网"),
+        "event": ("event", "conference", "festival", "launch", "concert", "活动", "大会", "发布会"),
+    }
+    for site_type, keywords in keyword_map.items():
+        if _contains_any(lower, keywords):
+            return site_type
+    return "other"
+
+
+def _collect_instruction_signals(raw_instructions: str) -> dict[str, bool]:
+    lower = raw_instructions.lower()
+    return {
+        "dark": _contains_any(lower, ("dark", "dark mode", "暗色", "深色", "黑色")),
+        "bright": _contains_any(lower, ("bright", "colorful", "鲜艳", "明亮", "彩色", "活泼")),
+        "minimal": _contains_any(lower, ("minimal", "clean", "simple", "简洁", "极简", "简约")),
+        "modern": _contains_any(lower, ("modern", "现代", "未来感")),
+        "premium": _contains_any(lower, ("premium", "luxury", "高级", "高端", "精致")),
+        "cute": _contains_any(lower, ("cute", "可爱", "萌", "童趣")),
+        "kids": _contains_any(lower, ("kids", "kid", "children", "child", "小孩", "孩子", "儿童")),
+        "cartoon": _contains_any(lower, ("cartoon", "卡通", "动画", "吉祥物", "mascot")),
+        "mobile": _contains_any(lower, ("mobile", "phone", "手机", "移动端", "触屏")),
+        "buttons": _contains_any(lower, ("button", "cta", "按钮", "更明显", "更突出")),
+        "search": _contains_any(lower, ("search", "搜索")),
+        "booking": _contains_any(lower, ("booking", "book now", "预订", "预约")),
+        "map": _contains_any(lower, ("map", "地图")),
+        "player": _contains_any(lower, ("player", "play", "播放器", "播放")),
+    }
+
+
+def _split_nonempty_lines(text: str) -> list[str]:
+    return [line.strip() for line in text.splitlines() if line.strip()]
+
+
+def _count_design_constraint_categories(raw_instructions: str) -> int:
+    lower = raw_instructions.lower()
+    categories: dict[str, tuple[str, ...]] = {
+        "color_theme": ("color", "theme", "palette", "dark", "light", "颜色", "配色", "暗色", "亮色", "鲜艳"),
+        "typography": ("font", "typography", "字重", "字体", "字型", "排版"),
+        "layout": ("layout", "grid", "hero", "sidebar", "card", "section", "布局", "栅格", "区块", "卡片", "导航"),
+        "interaction": ("hover", "animation", "motion", "transition", "交互", "动效", "动画", "点击反馈"),
+        "audience": ("audience", "tone", "kids", "family", "用户", "受众", "语气", "儿童", "家庭"),
+        "responsive": ("responsive", "mobile", "desktop", "响应式", "移动端", "手机", "桌面"),
+        "content": ("content", "feature", "category", "playlist", "gallery", "内容", "分类", "栏目", "推荐"),
+        "cta": ("cta", "button", "register", "buy", "join", "按钮", "注册", "购买", "加入", "行动"),
+    }
+    return sum(1 for keywords in categories.values() if _contains_any(lower, keywords))
+
+
+def _should_auto_expand_user_instructions(raw_instructions: str) -> tuple[bool, str]:
+    text = raw_instructions.strip()
+    if not text:
+        return False, "no user instructions were provided"
+
+    lines = _split_nonempty_lines(text)
+    lower = text.lower()
+    char_count = len(text)
+    bullet_line_count = sum(1 for line in lines if re.match(r"^(?:[-*]|\d+[.)])\s+", line))
+    heading_keywords = (
+        "visual style",
+        "page sections",
+        "content details",
+        "key features",
+        "audience",
+        "tone",
+        "视觉风格",
+        "页面区块",
+        "内容细节",
+        "交互",
+        "目标用户",
+        "受众",
+    )
+    heading_hits = sum(1 for keyword in heading_keywords if keyword in lower)
+    constraint_categories = _count_design_constraint_categories(text)
+
+    if heading_hits >= 2:
+        return False, "detected structured prompt headings"
+    if len(lines) >= 6 and bullet_line_count >= 3:
+        return False, "detected a multi-line structured brief"
+    if char_count >= 260 and constraint_categories >= 4:
+        return False, "detected a long brief with many explicit design constraints"
+    if char_count >= 180 and constraint_categories >= 5:
+        return False, "detected enough explicit design requirements to use directly"
+
+    if char_count <= 120:
+        return True, "brief is short and likely underspecified"
+    if len(lines) <= 2 and constraint_categories < 4:
+        return True, "brief has too few explicit design constraints"
+    if bullet_line_count == 0 and constraint_categories < 4:
+        return True, "brief reads like a simple request rather than a full design prompt"
+
+    return True, "brief is ambiguous, so defaulting to auto-expansion"
+
+
+def _build_visual_style(profile: dict[str, Any], signals: dict[str, bool], site_type: str) -> dict[str, Any]:
+    inspiration = list(profile["inspiration"])
+    aesthetic = str(profile["default_aesthetic"])
+    color_scheme = str(profile["default_color_scheme"])
+    typography = str(profile["default_typography"])
+    layout = str(profile["default_layout"])
+    audience = str(profile["audience"])
+    tone = str(profile["tone"])
+    cta = str(profile["cta"])
+
+    if signals["kids"] or signals["cartoon"]:
+        aesthetic = (
+            "a playful, safe, character-led interface that keeps the source site's browsing logic recognizable "
+            "while making the overall experience feel more joyful and age-appropriate"
+        )
+        color_scheme = (
+            "sunny yellow, coral, aqua, mint, and soft cream backgrounds with high-contrast action colors "
+            "so the page feels vivid, cheerful, and easy for children to scan"
+        )
+        typography = (
+            "rounded display lettering, large readable labels, and friendly interface copy that feels approachable "
+            "for children without becoming hard to scan for adults"
+        )
+        layout = (
+            "oversized card grid with soft corners, bold hero artwork, simplified category chips, and very obvious "
+            "primary actions and touch targets"
+        )
+        audience = "children first, with parents or guardians still able to understand and trust the interface"
+        tone = "joyful, safe, encouraging, and energetic"
+        cta = "start watching fun, safe, age-appropriate content"
+        if site_type == "media":
+            inspiration = ["YouTube Kids", "PBS Kids", "Disney Junior"]
+
+    if signals["dark"]:
+        color_scheme = (
+            "deep charcoal or graphite surfaces with vivid accent colors and strong contrast so the page feels "
+            "cinematic without losing usability"
+        )
+    elif signals["bright"] and not (signals["kids"] or signals["cartoon"]):
+        color_scheme = (
+            "lively accent colors with stronger contrast than the source page, using clear section separation and "
+            "high-energy highlights instead of muted tones"
+        )
+
+    if signals["minimal"]:
+        layout = "a cleaner, more spacious layout with simplified chrome, more breathing room, and stronger block separation"
+
+    if signals["modern"] and not (signals["kids"] or signals["cartoon"]):
+        aesthetic = "a more contemporary version of the source experience with cleaner surfaces, sharper hierarchy, and fresher visual rhythm"
+
+    if signals["premium"]:
+        aesthetic = "a more polished, premium interpretation of the source page with tighter hierarchy and more deliberate visual restraint"
+
+    return {
+        "aesthetic": aesthetic,
+        "color_scheme": color_scheme,
+        "typography": typography,
+        "layout": layout,
+        "inspiration": inspiration,
+        "audience": audience,
+        "tone": tone,
+        "cta": cta,
+    }
+
+
+def _build_sections(profile: dict[str, Any], signals: dict[str, bool], site_type: str) -> list[tuple[str, str]]:
+    if site_type == "media" and (signals["kids"] or signals["cartoon"]):
+        return [
+            ("Hero / Featured Cartoon Banner", "Lead with the biggest child-friendly featured video, playlist, or mascot campaign"),
+            ("Quick Category Navigation", "Expose obvious kid-friendly categories such as Cartoons, Songs, Animals, Learn, and Games"),
+            ("Safe Picks / Trending for Kids", "Use large thumbnail cards for the most clickable age-appropriate content"),
+            ("Learning, Songs, and Storytime Rows", "Separate educational, musical, and storytelling content into easy rails"),
+            ("Character-Led Recommendations", "Use mascot-driven or illustrated recommendation blocks that feel playful and friendly"),
+            ("Parent / Safety Utility Area", "Keep safe-mode, help, and guardian-facing links visible without dominating the page"),
+        ]
+    return list(profile["sections"])
+
+
+def _build_content_details(profile: dict[str, Any], signals: dict[str, bool], site_type: str) -> list[str]:
+    if site_type == "media" and (signals["kids"] or signals["cartoon"]):
+        return [
+            "Featured content — cartoons, sing-along videos, animal clips, beginner science explainers, craft videos, and storytime playlists",
+            "Character system — more mascot illustrations, cartoon thumbnails, rounded avatars, and playful decorative accents around major modules",
+            "Browse labels — simple, child-friendly labels such as Cartoons, Songs, Learn, Animals, Storytime, and Play",
+            "Safety cues — safe-mode messaging, obvious trusted sections, and copy that feels friendly rather than overwhelming",
+            "Card metadata — large titles, short supporting labels, and obvious duration/play cues that children can visually parse quickly",
+        ]
+    return list(profile["content_details"])
+
+
+def _build_feature_list(profile: dict[str, Any], signals: dict[str, bool], site_type: str) -> list[str]:
+    features = list(profile["features"])
+
+    if signals["buttons"]:
+        features.append("Make primary buttons, play triggers, and other key actions larger, higher-contrast, and more obvious at a glance")
+    if signals["mobile"]:
+        features.append("Prioritize mobile responsiveness with larger tap targets, simpler stacking, and fewer cramped controls")
+    if signals["search"]:
+        features.append("Keep search highly visible and easy to access from the first screen")
+    if signals["booking"]:
+        features.append("Make booking or reservation actions sticky, repeated, and visually dominant")
+    if signals["map"]:
+        features.append("Support location context with map-aware cues or address visibility")
+    if signals["player"] and site_type == "media":
+        features.append("Use clear play-state affordances and strong video-card interaction cues")
+
+    if site_type == "media" and (signals["kids"] or signals["cartoon"]):
+        features.extend(
+            [
+                "Use obvious category chips and simplified labels so children can browse without reading dense navigation",
+                "Add playful hover/tap feedback, gentle motion, and friendly iconography that reinforces the child-focused direction",
+            ]
+        )
+
+    return _dedupe_keep_order(features)
+
+
+def _expand_user_instructions(
+    raw_instructions: str,
+    url: str,
+    skill_root: Path,
+) -> str:
+    """
+    Expand vague user instructions into a structured prompt-expander brief.
+    """
+    del skill_root  # Prompt-expander is now fully embedded in this script.
+
+    site_type = _infer_site_type_from_request(url, raw_instructions)
+    profile = SITE_TYPE_PROFILES.get(site_type, SITE_TYPE_PROFILES["other"])
+    signals = _collect_instruction_signals(raw_instructions)
+    visual_style = _build_visual_style(profile, signals, site_type)
+    sections = _build_sections(profile, signals, site_type)
+    content_details = _build_content_details(profile, signals, site_type)
+    features = _build_feature_list(profile, signals, site_type)
+
+    assumptions = [
+        f"The source URL should remain recognizable as a {profile['display_name']} experience unless the user explicitly asks for a complete product-category change.",
+        "The user provided a short brief, so defaults below are expanded from the built-in prompt-expander rules instead of being guessed ad hoc.",
+        "The captured screenshot still defines the core information hierarchy, card density, and navigation purpose of the final page.",
+    ]
+    constraints = [
+        f'Honor the user brief exactly: "{raw_instructions.strip()}"',
+        "Preserve the recognizable structure and browsing logic of the captured source page while adapting styling and content emphasis.",
+    ]
+    if signals["kids"]:
+        constraints.append("Shift the audience toward children and family-friendly browsing.")
+    if signals["cartoon"]:
+        constraints.append("Increase the presence of mascot-like, illustrated, or cartoon-driven visual elements.")
+    if signals["bright"]:
+        constraints.append("Use a brighter and more energetic palette than the default source styling.")
+    if signals["buttons"]:
+        constraints.append("Make primary buttons and major actions easier to notice and easier to tap.")
+    if signals["mobile"]:
+        constraints.append("Prioritize small-screen usability and touch-friendly spacing.")
+
+    sections_text = "\n".join(
+        f"{idx}. {title} — {description}" for idx, (title, description) in enumerate(sections, start=1)
+    )
+    content_text = "\n".join(f"{idx}. {item}" for idx, item in enumerate(content_details, start=1))
+    features_text = "\n".join(f"- {item}" for item in features)
+    assumptions_text = "\n".join(f"- {item}" for item in assumptions)
+    constraints_text = "\n".join(f"- {item}" for item in _dedupe_keep_order(constraints))
+
+    return textwrap.dedent(
+        f"""\
+**Prompt-expander output (auto-generated from a brief user request):**
+**Inferred website type:** {profile["display_name"]}
+
+**Assumptions:**
+{assumptions_text}
+
+**Extracted constraints:**
+{constraints_text}
+
+I want to create a {profile["display_name"]} webpage adapted from the referenced website capture.
+
+**Visual Style:**
+- Overall aesthetic: {visual_style["aesthetic"]}
+- Color scheme: {visual_style["color_scheme"]}
+- Typography: {visual_style["typography"]}
+- Layout feel: {visual_style["layout"]}
+- Inspiration: {", ".join(visual_style["inspiration"])}
+
+**Page Sections:** (top to bottom)
+{sections_text}
+
+**Content Details:**
+{content_text}
+
+**Key Features & Interactions:**
+{features_text}
+- Responsive: mobile + desktop with preserved browsing hierarchy and comfortable tap targets
+
+**Audience & Tone:**
+- Target audience: {visual_style["audience"]}
+- Emotional tone: {visual_style["tone"]}
+- Call to action: {visual_style["cta"]}
+
+**Source Adaptation Rules:**
+- Preserve the recognizable information architecture, navigation purpose, and content density seen in the screenshot.
+- Apply the user's requested style shift through palette, typography, iconography, imagery, labels, and CTA emphasis.
+- Keep the final page coherent with the captured source instead of replacing the product category entirely.
+
+---
+"""
+    ).strip()
+
+
+def _format_direct_user_prompt(raw_instructions: str, url: str) -> str:
+    site_type = _infer_site_type_from_request(url, raw_instructions)
+    profile = SITE_TYPE_PROFILES.get(site_type, SITE_TYPE_PROFILES["other"])
+    return textwrap.dedent(
+        f"""\
+**Prompt-expander output (direct use):**
+**Inferred website type:** {profile["display_name"]}
+
+**Decision:**
+- The user brief already looks detailed enough, so use it directly instead of auto-expanding it.
+
+**User provided detailed brief:**
+{raw_instructions.strip()}
+
+**Source Adaptation Rules:**
+- Preserve the recognizable information architecture, navigation purpose, and content density seen in the screenshot.
+- Respect the user's detailed instructions as the primary creative direction.
+- Keep the final page coherent with the captured source instead of replacing the product category entirely.
+
+---
+"""
+    ).strip()
+
+
+def _build_replica_prompt(
+    prompt_template: str,
+    css_text: str,
+    expanded_user_prompt: str = "",
+) -> str:
     first_sentence = (
         "Recreate the referenced website into one complete HTML file with high visual fidelity."
     )
     out = prompt_template
     out = out.replace("[first_sentence]", first_sentence)
     out = out.replace("[css_text]", css_text)
+
+    out = out.replace("[user_instructions]", expanded_user_prompt.strip())
     return out
+
+
+def _handle_expanded_prompt_confirmation(
+    expanded_user_prompt: str,
+    expanded_prompt_path: Path,
+    *,
+    require_confirmation: bool,
+    approved: bool,
+) -> bool:
+    if not expanded_user_prompt.strip():
+        return True
+
+    if approved:
+        print(f"[prompt-expander] using pre-approved prepared prompt: {expanded_prompt_path}")
+        return True
+
+    if not require_confirmation:
+        return True
+
+    print(f"[prompt-expander] prepared prompt written to {expanded_prompt_path}")
+    print("[prompt-expander] review the prepared prompt below before clone generation:\n")
+    print(expanded_user_prompt)
+    print("")
+
+    if sys.stdin is not None and sys.stdin.isatty():
+        try:
+            reply = input("[prompt-expander] Continue with this prepared prompt? [y/N]: ").strip().lower()
+        except EOFError:
+            reply = ""
+        if reply in {"y", "yes"}:
+            print("[prompt-expander] confirmed. Continuing with capture and clone generation.")
+            return True
+        print("[prompt-expander] cancelled. Update the instructions and rerun when ready.")
+        return False
+
+    print(
+        "[prompt-expander] non-interactive mode detected. Review the expanded prompt file, "
+        "then rerun with --approve-expanded-prompt to continue."
+    )
+    return False
 
 
 def _extract_html(raw_text: str) -> str:
@@ -534,6 +1239,17 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--temperature", type=float, default=None, help="Override sampling temperature.")
     parser.add_argument("--include-video", action=argparse.BooleanOptionalAction, default=None, help="Capture scroll video.")
     parser.add_argument("--headed", action=argparse.BooleanOptionalAction, default=None, help="Run browser headed.")
+    parser.add_argument("--instructions", default=None, help="Optional user instructions (short/vague OK). Will be expanded using prompt-expander reference.")
+    parser.add_argument(
+        "--confirm-expanded-prompt",
+        action="store_true",
+        help="Pause after generating the expanded prompt and require explicit confirmation before clone generation.",
+    )
+    parser.add_argument(
+        "--approve-expanded-prompt",
+        action="store_true",
+        help="Continue using a previously reviewed expanded prompt without prompting again.",
+    )
     parser.add_argument("--bootstrap-only", action="store_true", help="Install/verify runtime only; do not execute clone.")
     parser.add_argument("--verify-runtime", action="store_true", help="Verify runtime is available before running.")
     parser.add_argument("--skip-bootstrap", action="store_true", help="Run directly in current Python without runtime bootstrap.")
@@ -563,6 +1279,7 @@ def _run_pipeline(args: argparse.Namespace, *, skill_root: Path, cfg_path: Path)
     video_path = out_dir / artifact_video
     replica_path = out_dir / artifact_replica
     replica_prompt_path = out_dir / (Path(artifact_replica).stem + ".prompt.txt")
+    expanded_prompt_path = out_dir / "expanded_user_prompt.txt"
     replica_raw_path = out_dir / (Path(artifact_replica).stem + ".raw.txt")
     replica_json_path = out_dir / (Path(artifact_replica).stem + ".response.json")
 
@@ -599,6 +1316,43 @@ def _run_pipeline(args: argparse.Namespace, *, skill_root: Path, cfg_path: Path)
 
     api_key = _discover_gemini_key(skill_root)
 
+    user_instructions = str(args.instructions or _deep_get(cfg, "replica_forge.user_instructions", "") or "").strip()
+    expanded_user_prompt = ""
+    prompt_expander_meta: dict[str, Any] = {}
+    if user_instructions:
+        inferred_site_type = _infer_site_type_from_request(args.url, user_instructions)
+        should_expand, decision_reason = _should_auto_expand_user_instructions(user_instructions)
+        print(f"[web-replica] user instructions: {user_instructions[:80]}{'...' if len(user_instructions) > 80 else ''}")
+        print(f"[prompt-expander] inferred site type: {inferred_site_type}")
+        print(
+            f"[prompt-expander] decision: {'auto-expand' if should_expand else 'direct-use'} "
+            f"({decision_reason})"
+        )
+        if should_expand:
+            expanded_user_prompt = _expand_user_instructions(user_instructions, args.url, skill_root)
+        else:
+            expanded_user_prompt = _format_direct_user_prompt(user_instructions, args.url)
+        _write_text(expanded_prompt_path, expanded_user_prompt + "\n")
+        prompt_expander_meta = {
+            "decision": "expanded" if should_expand else "direct_use",
+            "reason": decision_reason,
+            "inferred_site_type": inferred_site_type,
+            "user_instructions": user_instructions,
+            "prepared_prompt_path": str(expanded_prompt_path),
+        }
+        if should_expand:
+            if not _handle_expanded_prompt_confirmation(
+                expanded_user_prompt,
+                expanded_prompt_path,
+                require_confirmation=bool(args.confirm_expanded_prompt),
+                approved=bool(args.approve_expanded_prompt),
+            ):
+                return 0
+        elif args.confirm_expanded_prompt:
+            print("[prompt-expander] user instructions already look detailed enough; skipping expansion confirmation.")
+    elif args.confirm_expanded_prompt or args.approve_expanded_prompt:
+        print("[prompt-expander] confirmation flags ignored because no user instructions were provided.")
+
     print(f"[web-replica] skill_root={skill_root}")
     print(f"[web-replica] config={cfg_path}")
     print(f"[web-replica] out_dir={out_dir}")
@@ -622,7 +1376,11 @@ def _run_pipeline(args: argparse.Namespace, *, skill_root: Path, cfg_path: Path)
     )
 
     css_text = _read_text(styles_path)
-    prompt_text = _build_replica_prompt(prompt_template, css_text)
+    prompt_text = _build_replica_prompt(
+        prompt_template,
+        css_text,
+        expanded_user_prompt=expanded_user_prompt,
+    )
     _write_text(replica_prompt_path, prompt_text)
 
     print("[replica-forge] generating HTML with Gemini")
@@ -689,6 +1447,7 @@ def _run_pipeline(args: argparse.Namespace, *, skill_root: Path, cfg_path: Path)
             "video": str(video_path if include_video else ""),
             "replica": str(replica_path),
             "replica_prompt": str(replica_prompt_path),
+            "expanded_user_prompt": str(expanded_prompt_path if expanded_user_prompt else ""),
             "replica_raw": str(replica_raw_path),
             "replica_response_json": str(replica_json_path),
         },
@@ -699,6 +1458,7 @@ def _run_pipeline(args: argparse.Namespace, *, skill_root: Path, cfg_path: Path)
             "temperature": temperature,
             "usage_tokens": usage,
         },
+        "prompt_expander": prompt_expander_meta,
         "legacy_aliases_written": bool(write_legacy_aliases),
     }
     _write_text(manifest_path, json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
