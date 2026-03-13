@@ -1,2 +1,9 @@
 *.env
 **/.env
+outputs/
+/.local-runtime/
+/cloneit-web-cloning/.runtime/
+/server.pid
+/test_*/
+__pycache__/
+*.pyc

@@ -1,8 +1,0 @@
-Recreate the referenced website into one complete HTML file with high visual fidelity.
-
-Use only the screenshot as the primary source.
-Do not include long raw stylesheet dumps.
-Create a standalone HTML file with embedded CSS and minimal JS.
-Preserve the overall visual hierarchy of the captured page.
-Ensure responsive behavior for desktop and mobile widths.
-Return only valid HTML.

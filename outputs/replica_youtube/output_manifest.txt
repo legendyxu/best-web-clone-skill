@@ -1,2 +1,0 @@
-  - screenshot: /home/lenovo/best-web-clone-skill/outputs/replica_youtube/page_stitched.png
-  - css: /home/lenovo/best-web-clone-skill/outputs/replica_youtube/page_html_styles.css

@@ -385,8 +385,153 @@ def _venv_python_path(venv_dir: Path) -> Path:
     return venv_dir / "bin" / "python"
 
 
+def _runtime_browser_dir(runtime_dir: Path) -> Path:
+    return runtime_dir / "pw-browsers"
+
+
+def _managed_runtime_env(skill_root: Path, *, base_env: Optional[dict[str, str]] = None) -> dict[str, str]:
+    env = (base_env or os.environ).copy()
+    env["PLAYWRIGHT_BROWSERS_PATH"] = str(_runtime_browser_dir(skill_root / ".runtime").resolve())
+    return env
+
+
+def _is_git_lfs_pointer(path: Path) -> bool:
+    try:
+        with path.open("r", encoding="utf-8", errors="ignore") as handle:
+            first_line = handle.readline().strip()
+            second_line = handle.readline().strip()
+    except OSError:
+        return False
+    return first_line == "version https://git-lfs.github.com/spec/v1" and second_line.startswith("oid sha256:")
+
+
+def _playwright_driver_node_path(venv_dir: Path) -> Optional[Path]:
+    candidates: list[Path] = []
+    lib_dir = venv_dir / "lib"
+    if lib_dir.exists():
+        for site_packages in lib_dir.glob("python*/site-packages"):
+            candidates.append(site_packages / "playwright" / "driver" / "node")
+    candidates.append(venv_dir / "Lib" / "site-packages" / "playwright" / "driver" / "node.exe")
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _managed_runtime_rebuild_reason(venv_dir: Path, venv_python: Path) -> Optional[str]:
+    if not venv_dir.exists():
+        return None
+    if not venv_python.exists():
+        return "managed runtime is missing its python executable"
+
+    activate = venv_dir / "bin" / "activate"
+    if os.name != "nt" and activate.exists():
+        activate_text = _read_text(activate)
+        expected_path = str(venv_dir.resolve())
+        if expected_path not in activate_text:
+            return "managed runtime activation script points to a different machine path"
+
+    driver_node = _playwright_driver_node_path(venv_dir)
+    if driver_node is not None and _is_git_lfs_pointer(driver_node):
+        return "Playwright driver binary was checked out as a Git LFS pointer"
+
+    return None
+
+
+def _reset_managed_runtime(runtime_dir: Path) -> None:
+    for stale_path in (runtime_dir / "venv", _runtime_browser_dir(runtime_dir)):
+        if stale_path.exists():
+            print(f"[bootstrap] removing stale managed runtime path: {stale_path}")
+            shutil.rmtree(stale_path)
+
+
+def _using_managed_runtime_python(skill_root: Path) -> bool:
+    managed_python = _venv_python_path(skill_root / ".runtime" / "venv")
+    if not managed_python.exists():
+        return False
+    try:
+        return Path(sys.executable).resolve() == managed_python.resolve()
+    except OSError:
+        return False
+
+
+def _browser_glob_patterns(*, headed: bool) -> tuple[str, ...]:
+    if headed:
+        return (
+            "chromium-*/chrome-linux64/chrome",
+        )
+    return (
+        "chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell",
+        "chromium-*/chrome-linux64/chrome",
+    )
+
+
+def _discover_browser_executable(
+    *,
+    env_map: Optional[dict[str, str]] = None,
+    headed: bool = False,
+) -> Optional[Path]:
+    env_map = env_map or os.environ
+    seen: set[str] = set()
+    candidates: list[Path] = []
+
+    def add_candidate(path: Path) -> None:
+        try:
+            resolved = str(path.resolve())
+        except OSError:
+            resolved = str(path)
+        if resolved in seen or not path.exists():
+            return
+        seen.add(resolved)
+        candidates.append(path)
+
+    override = str(env_map.get("WEB_REPLICA_BROWSER_EXECUTABLE", "")).strip()
+    if override:
+        add_candidate(Path(override).expanduser())
+
+    browser_roots: list[Path] = []
+    browser_root_env = str(env_map.get("PLAYWRIGHT_BROWSERS_PATH", "")).strip()
+    if browser_root_env:
+        browser_roots.append(Path(browser_root_env).expanduser())
+    browser_roots.append(Path.home() / ".cache" / "ms-playwright")
+
+    for root in browser_roots:
+        for pattern in _browser_glob_patterns(headed=headed):
+            for candidate in sorted(root.glob(pattern), reverse=True):
+                add_candidate(candidate)
+
+    for binary_name in ("chromium-browser", "chromium", "google-chrome", "google-chrome-stable", "microsoft-edge"):
+        path = shutil.which(binary_name)
+        if path:
+            add_candidate(Path(path))
+
+    return candidates[0] if candidates else None
+
+
 def _cmd_as_str(cmd: list[str]) -> str:
     return " ".join(shlex.quote(str(p)) for p in cmd)
+
+
+def _print_error_hint(exc: Exception) -> None:
+    message = str(exc)
+    upper = message.upper()
+    hints: list[str] = []
+
+    if "GOOGLE_GEMINI_API_KEY" in message:
+        hints.append("Set GOOGLE_GEMINI_API_KEY in the current shell or in a .env file next to the project.")
+
+    if "ERR_TUNNEL_CONNECTION_FAILED" in upper or "ERR_PROXY_CONNECTION_FAILED" in upper:
+        hints.append("The browser could not reach the target website through the current proxy/tunnel settings.")
+        hints.append("Check whether the machine can open the target URL in a normal browser, or disable the broken proxy before rerunning.")
+    elif "ERR_NAME_NOT_RESOLVED" in upper or "ERR_CONNECTION_TIMED_OUT" in upper or "ERR_CONNECTION_REFUSED" in upper:
+        hints.append("The runtime is healthy, but the target website is not reachable from this machine right now.")
+    elif "PLAYWRIGHT BROWSER BOOTSTRAP FAILED" in upper:
+        hints.append("No usable browser was available. Install Chrome/Chromium locally or allow Playwright browser downloads.")
+
+    if hints:
+        print("[hint] Suggested next steps:", file=sys.stderr)
+        for hint in hints:
+            print(f"[hint] - {hint}", file=sys.stderr)
 
 
 def _run_cmd(
@@ -429,15 +574,22 @@ def _run_cmd(
     return proc
 
 
-def _ensure_runtime(skill_root: Path, cfg: dict[str, Any]) -> Path:
+def _ensure_runtime(skill_root: Path, cfg: dict[str, Any], *, force_rebuild: bool = False) -> Path:
     runtime_dir = skill_root / ".runtime"
     venv_dir = runtime_dir / "venv"
     venv_python = _venv_python_path(venv_dir)
+    runtime_env = _managed_runtime_env(skill_root)
+    browser_dir = Path(runtime_env["PLAYWRIGHT_BROWSERS_PATH"])
     requirements = skill_root / "assets" / "requirements.txt"
     package_install_timeout_s = int(_deep_get(cfg, "runtime.package_install_timeout_seconds", 900))
     browser_install_timeout_s = int(_deep_get(cfg, "runtime.browser_install_timeout_seconds", 1200))
     pip_network_timeout_s = int(_deep_get(cfg, "runtime.pip_network_timeout_seconds", 45))
     pip_retries = int(_deep_get(cfg, "runtime.pip_retries", 2))
+
+    rebuild_reason = "requested with --force-rebuild-runtime" if force_rebuild else _managed_runtime_rebuild_reason(venv_dir, venv_python)
+    if rebuild_reason:
+        print(f"[bootstrap] rebuilding managed runtime: {rebuild_reason}")
+        _reset_managed_runtime(runtime_dir)
 
     if not venv_python.exists():
         print(f"[bootstrap] creating virtualenv at {venv_dir}")
@@ -458,7 +610,7 @@ def _ensure_runtime(skill_root: Path, cfg: dict[str, Any]) -> Path:
     )
 
     needs_install = True
-    probe = _run_cmd([str(venv_python), "-c", check_code], check=False)
+    probe = _run_cmd([str(venv_python), "-c", check_code], env=runtime_env, check=False)
     if probe.returncode == 0:
         needs_install = False
         print("[bootstrap] python packages already present")
@@ -476,11 +628,13 @@ def _ensure_runtime(skill_root: Path, cfg: dict[str, Any]) -> Path:
         try:
             _run_cmd(
                 [str(venv_python), "-m", "pip", "install", "--upgrade", "pip", *pip_common],
+                env=runtime_env,
                 stream=True,
                 timeout_s=package_install_timeout_s,
             )
             _run_cmd(
                 [str(venv_python), "-m", "pip", "install", "-r", str(requirements), *pip_common],
+                env=runtime_env,
                 stream=True,
                 timeout_s=package_install_timeout_s,
             )
@@ -491,36 +645,61 @@ def _ensure_runtime(skill_root: Path, cfg: dict[str, Any]) -> Path:
             ) from exc
 
     install_playwright = bool(_deep_get(cfg, "runtime.install_playwright", True))
+    browser_executable = _discover_browser_executable(env_map=runtime_env, headed=False)
     if install_playwright:
-        print("[bootstrap] ensuring Chromium is installed for Playwright (streaming logs)")
-        try:
-            _run_cmd(
-                [str(venv_python), "-m", "playwright", "install", "chromium"],
-                stream=True,
-                timeout_s=browser_install_timeout_s,
+        browser_dir.mkdir(parents=True, exist_ok=True)
+        print(f"[bootstrap] Playwright browser cache: {browser_dir}")
+        if browser_executable is not None:
+            print(
+                "[bootstrap] reusing existing browser executable instead of downloading Chromium: "
+                f"{browser_executable}"
             )
-        except RuntimeError as exc:
-            raise RuntimeError(
-                "Playwright browser bootstrap failed. Check network/system dependencies, "
-                "then retry `--bootstrap-only`."
-            ) from exc
+        else:
+            print("[bootstrap] ensuring Chromium is installed for Playwright (streaming logs)")
+            try:
+                _run_cmd(
+                    [str(venv_python), "-m", "playwright", "install", "chromium"],
+                    env=runtime_env,
+                    stream=True,
+                    timeout_s=browser_install_timeout_s,
+                )
+            except RuntimeError as exc:
+                fallback_browser = _discover_browser_executable(env_map=runtime_env, headed=False)
+                if fallback_browser is None:
+                    raise RuntimeError(
+                        "Playwright browser bootstrap failed. Check network/system dependencies, "
+                        "then retry `--bootstrap-only`."
+                    ) from exc
+                browser_executable = fallback_browser
+                print(
+                    "[bootstrap] Playwright browser download failed; "
+                    f"falling back to existing browser executable: {fallback_browser}"
+                )
 
     verify_browser = bool(_deep_get(cfg, "runtime.verify_browser_launch", True))
     if verify_browser:
-        browser_probe = (
-            "from playwright.sync_api import sync_playwright\n"
-            "with sync_playwright() as p:\n"
-            "  b=p.chromium.launch(headless=True)\n"
-            "  page=b.new_page()\n"
-            "  page.goto('about:blank')\n"
-            "  b.close()\n"
-            "print('browser-ok')\n"
+        browser_executable = _discover_browser_executable(env_map=runtime_env, headed=False)
+        launch_line = "  b=p.chromium.launch(headless=True"
+        if browser_executable is not None:
+            print(f"[bootstrap] using browser executable: {browser_executable}")
+            launch_line += f", executable_path={str(browser_executable)!r}"
+        launch_line += ")\n"
+        browser_probe = "".join(
+            [
+                "from playwright.sync_api import sync_playwright\n",
+                "with sync_playwright() as p:\n",
+                launch_line,
+                "  page=b.new_page()\n",
+                "  page.goto('about:blank')\n",
+                "  b.close()\n",
+                "print('browser-ok')\n",
+            ]
         )
-        _run_cmd([str(venv_python), "-c", browser_probe])
+        _run_cmd([str(venv_python), "-c", browser_probe], env=runtime_env)
         print("[bootstrap] browser launch verification passed")
 
     # Final package probe after install.
-    _run_cmd([str(venv_python), "-c", check_code])
+    _run_cmd([str(venv_python), "-c", check_code], env=runtime_env)
     return venv_python
 
 
@@ -585,7 +764,12 @@ def _capture_matrix(
 
     print("[capture-matrix] launching browser")
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=not headed)
+        launch_kwargs: dict[str, Any] = {"headless": not headed}
+        browser_executable = _discover_browser_executable(headed=headed)
+        if browser_executable is not None:
+            print(f"[capture-matrix] using browser executable: {browser_executable}")
+            launch_kwargs["executable_path"] = str(browser_executable)
+        browser = p.chromium.launch(**launch_kwargs)
         context_kwargs: dict[str, Any] = {
             "viewport": {"width": int(viewport_w), "height": int(viewport_h)}
         }
@@ -1250,6 +1434,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Continue using a previously reviewed expanded prompt without prompting again.",
     )
+    parser.add_argument(
+        "--force-rebuild-runtime",
+        action="store_true",
+        help="Delete the managed .runtime and rebuild it from scratch before running.",
+    )
     parser.add_argument("--bootstrap-only", action="store_true", help="Install/verify runtime only; do not execute clone.")
     parser.add_argument("--verify-runtime", action="store_true", help="Verify runtime is available before running.")
     parser.add_argument("--skip-bootstrap", action="store_true", help="Run directly in current Python without runtime bootstrap.")
@@ -1484,6 +1673,8 @@ def main() -> int:
     skill_root = script_path.parent.parent
     cfg_path = _resolve_config_path(args.config, skill_root)
     active_venv = str(os.getenv("VIRTUAL_ENV", "")).strip()
+    if os.getenv(RUNTIME_ENV) == "1" or _using_managed_runtime_python(skill_root):
+        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(_runtime_browser_dir(skill_root / ".runtime").resolve())
 
     if os.getenv(RUNTIME_ENV) != "1" and not args.skip_bootstrap:
         if active_venv:
@@ -1491,12 +1682,12 @@ def main() -> int:
                 "[bootstrap] detected an active virtualenv, but using isolated skill runtime at .runtime/venv for consistency"
             )
         cfg = _load_config(cfg_path)
-        venv_python = _ensure_runtime(skill_root, cfg)
+        venv_python = _ensure_runtime(skill_root, cfg, force_rebuild=args.force_rebuild_runtime)
         if args.bootstrap_only:
             print("[bootstrap] runtime ready")
             return 0
         cmd = [str(venv_python), str(script_path), *sys.argv[1:]]
-        env = os.environ.copy()
+        env = _managed_runtime_env(skill_root, base_env=os.environ.copy())
         env[RUNTIME_ENV] = "1"
         print(f"[bootstrap] re-executing in managed runtime: {_cmd_as_str(cmd)}")
         proc = subprocess.run(cmd, env=env)
@@ -1529,6 +1720,7 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except Exception as exc:  # pragma: no cover
         print(f"[error] {type(exc).__name__}: {exc}", file=sys.stderr)
+        _print_error_hint(exc)
         tb = traceback.format_exc()
         if tb:
             print(tb, file=sys.stderr)
