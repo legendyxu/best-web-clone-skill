@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import base64
 import datetime as dt
+from dataclasses import dataclass
 import importlib.util
 import json
 import os
@@ -28,6 +29,15 @@ from pathlib import Path
 from typing import Any, Optional
 
 RUNTIME_ENV = "WEB_REPLICA_RUNTIME_ACTIVE"
+RUNTIME_PYTHONPATH_ENV = "WEB_REPLICA_RUNTIME_PYTHONPATH"
+
+
+@dataclass
+class ManagedRuntime:
+    python: Path
+    env: dict[str, str]
+    location: Path
+    uses_venv: bool
 
 SITE_TYPE_PROFILES: dict[str, dict[str, Any]] = {
     "media": {
@@ -389,9 +399,26 @@ def _runtime_browser_dir(runtime_dir: Path) -> Path:
     return runtime_dir / "pw-browsers"
 
 
-def _managed_runtime_env(skill_root: Path, *, base_env: Optional[dict[str, str]] = None) -> dict[str, str]:
+def _runtime_site_packages_dir(runtime_dir: Path) -> Path:
+    return runtime_dir / "site-packages"
+
+
+def _managed_runtime_env(
+    skill_root: Path,
+    *,
+    base_env: Optional[dict[str, str]] = None,
+    site_packages_dir: Optional[Path] = None,
+) -> dict[str, str]:
     env = (base_env or os.environ).copy()
+    env.pop("PYTHONPATH", None)
     env["PLAYWRIGHT_BROWSERS_PATH"] = str(_runtime_browser_dir(skill_root / ".runtime").resolve())
+    env["PIP_DISABLE_PIP_VERSION_CHECK"] = "1"
+    env["PYTHONNOUSERSITE"] = "1"
+    if site_packages_dir is not None:
+        env["PYTHONPATH"] = str(site_packages_dir.resolve())
+        env[RUNTIME_PYTHONPATH_ENV] = str(site_packages_dir.resolve())
+    else:
+        env.pop(RUNTIME_PYTHONPATH_ENV, None)
     return env
 
 
@@ -439,7 +466,7 @@ def _managed_runtime_rebuild_reason(venv_dir: Path, venv_python: Path) -> Option
 
 
 def _reset_managed_runtime(runtime_dir: Path) -> None:
-    for stale_path in (runtime_dir / "venv", _runtime_browser_dir(runtime_dir)):
+    for stale_path in (runtime_dir / "venv", _runtime_site_packages_dir(runtime_dir), _runtime_browser_dir(runtime_dir)):
         if stale_path.exists():
             print(f"[bootstrap] removing stale managed runtime path: {stale_path}")
             shutil.rmtree(stale_path)
@@ -453,6 +480,67 @@ def _using_managed_runtime_python(skill_root: Path) -> bool:
         return Path(sys.executable).resolve() == managed_python.resolve()
     except OSError:
         return False
+
+
+def _looks_like_missing_venv_support(exc: BaseException) -> bool:
+    message = str(exc).lower()
+    return "ensurepip" in message or "python3-venv" in message or "virtual environment was not created successfully" in message
+
+
+def _python_has_ensurepip(python_cmd: Path) -> bool:
+    probe = _run_cmd(
+        [
+            str(python_cmd),
+            "-c",
+            "import importlib.util\nraise SystemExit(0 if importlib.util.find_spec('ensurepip') else 1)\n",
+        ],
+        check=False,
+    )
+    return probe.returncode == 0
+
+
+def _python_has_pip(python_cmd: Path, *, env: Optional[dict[str, str]] = None) -> bool:
+    probe = _run_cmd([str(python_cmd), "-m", "pip", "--version"], env=env, check=False)
+    return probe.returncode == 0
+
+
+def _runtime_probe_code(runtime: ManagedRuntime) -> str:
+    lines = [
+        "import importlib\n",
+        "import pathlib\n",
+        "mods=['google.genai','playwright.sync_api']\n",
+        "missing=[]\n",
+    ]
+    if not runtime.uses_venv:
+        lines.append(f"runtime_root = pathlib.Path({str(runtime.location.resolve())!r}).resolve()\n")
+    lines.extend(
+        [
+            "for m in mods:\n",
+            "  try:\n",
+            "    mod = importlib.import_module(m)\n",
+        ]
+    )
+    if not runtime.uses_venv:
+        lines.extend(
+            [
+                "    origin = getattr(mod, '__file__', '') or ''\n",
+                "    if not origin:\n",
+                "      missing.append(f'{m}: missing __file__ for runtime provenance check')\n",
+                "      continue\n",
+                "    origin_path = pathlib.Path(origin).resolve()\n",
+                "    if runtime_root not in origin_path.parents:\n",
+                "      missing.append(f'{m}: loaded from unexpected path {origin_path}')\n",
+            ]
+        )
+    lines.extend(
+        [
+            "  except Exception as e:\n",
+            "    missing.append(f'{m}: {e}')\n",
+            "print('OK' if not missing else '\\n'.join(missing))\n",
+            "raise SystemExit(0 if not missing else 2)\n",
+        ]
+    )
+    return "".join(lines)
 
 
 def _browser_glob_patterns(*, headed: bool) -> tuple[str, ...]:
@@ -519,6 +607,8 @@ def _print_error_hint(exc: Exception) -> None:
 
     if "GOOGLE_GEMINI_API_KEY" in message:
         hints.append("Set GOOGLE_GEMINI_API_KEY in the current shell or in a .env file next to the project.")
+    if "does not expose pip" in message or "could not create a virtualenv" in message:
+        hints.append("Use the Docker workflow if you want a fully isolated first-run path, or add pip/venv support to the host Python.")
 
     if "ERR_TUNNEL_CONNECTION_FAILED" in upper or "ERR_PROXY_CONNECTION_FAILED" in upper:
         hints.append("The browser could not reach the target website through the current proxy/tunnel settings.")
@@ -574,10 +664,12 @@ def _run_cmd(
     return proc
 
 
-def _ensure_runtime(skill_root: Path, cfg: dict[str, Any], *, force_rebuild: bool = False) -> Path:
+def _ensure_runtime(skill_root: Path, cfg: dict[str, Any], *, force_rebuild: bool = False) -> ManagedRuntime:
     runtime_dir = skill_root / ".runtime"
     venv_dir = runtime_dir / "venv"
     venv_python = _venv_python_path(venv_dir)
+    site_packages_dir = _runtime_site_packages_dir(runtime_dir)
+    host_python = Path(sys.executable).resolve()
     runtime_env = _managed_runtime_env(skill_root)
     browser_dir = Path(runtime_env["PLAYWRIGHT_BROWSERS_PATH"])
     requirements = skill_root / "assets" / "requirements.txt"
@@ -591,26 +683,63 @@ def _ensure_runtime(skill_root: Path, cfg: dict[str, Any], *, force_rebuild: boo
         print(f"[bootstrap] rebuilding managed runtime: {rebuild_reason}")
         _reset_managed_runtime(runtime_dir)
 
-    if not venv_python.exists():
-        print(f"[bootstrap] creating virtualenv at {venv_dir}")
-        runtime_dir.mkdir(parents=True, exist_ok=True)
-        venv.EnvBuilder(with_pip=True, clear=False, symlinks=True).create(str(venv_dir))
+    runtime_dir.mkdir(parents=True, exist_ok=True)
 
-    check_code = (
-        "import importlib\n"
-        "mods=['google.genai','playwright.sync_api']\n"
-        "missing=[]\n"
-        "for m in mods:\n"
-        "  try:\n"
-        "    importlib.import_module(m)\n"
-        "  except Exception as e:\n"
-        "    missing.append(f'{m}: {e}')\n"
-        "print('OK' if not missing else '\\n'.join(missing))\n"
-        "raise SystemExit(0 if not missing else 2)\n"
-    )
+    runtime: Optional[ManagedRuntime] = None
+    host_has_ensurepip = _python_has_ensurepip(host_python)
+    if venv_python.exists():
+        runtime = ManagedRuntime(
+            python=venv_python,
+            env=_managed_runtime_env(skill_root),
+            location=venv_dir,
+            uses_venv=True,
+        )
+    elif host_has_ensurepip:
+        print(f"[bootstrap] creating virtualenv at {venv_dir}")
+        try:
+            venv.EnvBuilder(with_pip=True, clear=False, symlinks=True).create(str(venv_dir))
+        except Exception as exc:
+            if not _looks_like_missing_venv_support(exc):
+                raise
+            if not _python_has_pip(host_python):
+                raise RuntimeError(
+                    "Host Python could not create a virtualenv and does not expose pip. "
+                    "Use the Docker workflow or install pip/venv support for the host Python."
+                ) from exc
+            print("[bootstrap] host Python cannot bootstrap venv here; falling back to project-local site-packages")
+        else:
+            runtime = ManagedRuntime(
+                python=venv_python,
+                env=_managed_runtime_env(skill_root),
+                location=venv_dir,
+                uses_venv=True,
+            )
+
+    if runtime is None:
+        if not host_has_ensurepip:
+            print("[bootstrap] host Python has no ensurepip/venv bootstrap support; using project-local site-packages")
+        if not _python_has_pip(host_python):
+            raise RuntimeError(
+                "Host Python does not expose pip and cannot create a virtualenv. "
+                "Use the Docker workflow or install pip support for the host Python."
+            )
+        had_fallback_packages = site_packages_dir.exists() and any(site_packages_dir.iterdir())
+        site_packages_dir.mkdir(parents=True, exist_ok=True)
+        runtime = ManagedRuntime(
+            python=host_python,
+            env=_managed_runtime_env(skill_root, site_packages_dir=site_packages_dir),
+            location=site_packages_dir,
+            uses_venv=False,
+        )
+        if had_fallback_packages:
+            print(f"[bootstrap] reusing project-local site-packages runtime at {site_packages_dir}")
+        else:
+            print(f"[bootstrap] using project-local site-packages runtime at {site_packages_dir}")
+
+    check_code = _runtime_probe_code(runtime)
 
     needs_install = True
-    probe = _run_cmd([str(venv_python), "-c", check_code], env=runtime_env, check=False)
+    probe = _run_cmd([str(runtime.python), "-c", check_code], env=runtime.env, check=False)
     if probe.returncode == 0:
         needs_install = False
         print("[bootstrap] python packages already present")
@@ -626,15 +755,31 @@ def _ensure_runtime(skill_root: Path, cfg: dict[str, Any], *, force_rebuild: boo
             str(max(1, pip_network_timeout_s)),
         ]
         try:
+            if runtime.uses_venv:
+                _run_cmd(
+                    [str(runtime.python), "-m", "pip", "install", "--upgrade", "pip", *pip_common],
+                    env=runtime.env,
+                    stream=True,
+                    timeout_s=package_install_timeout_s,
+                )
+                install_cmd = [str(runtime.python), "-m", "pip", "install", "-r", str(requirements), *pip_common]
+            else:
+                install_cmd = [
+                    str(runtime.python),
+                    "-m",
+                    "pip",
+                    "install",
+                    "--upgrade",
+                    "--ignore-installed",
+                    "--target",
+                    str(site_packages_dir),
+                    "-r",
+                    str(requirements),
+                    *pip_common,
+                ]
             _run_cmd(
-                [str(venv_python), "-m", "pip", "install", "--upgrade", "pip", *pip_common],
-                env=runtime_env,
-                stream=True,
-                timeout_s=package_install_timeout_s,
-            )
-            _run_cmd(
-                [str(venv_python), "-m", "pip", "install", "-r", str(requirements), *pip_common],
-                env=runtime_env,
+                install_cmd,
+                env=runtime.env,
                 stream=True,
                 timeout_s=package_install_timeout_s,
             )
@@ -658,8 +803,8 @@ def _ensure_runtime(skill_root: Path, cfg: dict[str, Any], *, force_rebuild: boo
             print("[bootstrap] ensuring Chromium is installed for Playwright (streaming logs)")
             try:
                 _run_cmd(
-                    [str(venv_python), "-m", "playwright", "install", "chromium"],
-                    env=runtime_env,
+                    [str(runtime.python), "-m", "playwright", "install", "chromium"],
+                    env=runtime.env,
                     stream=True,
                     timeout_s=browser_install_timeout_s,
                 )
@@ -695,12 +840,12 @@ def _ensure_runtime(skill_root: Path, cfg: dict[str, Any], *, force_rebuild: boo
                 "print('browser-ok')\n",
             ]
         )
-        _run_cmd([str(venv_python), "-c", browser_probe], env=runtime_env)
+        _run_cmd([str(runtime.python), "-c", browser_probe], env=runtime.env)
         print("[bootstrap] browser launch verification passed")
 
     # Final package probe after install.
-    _run_cmd([str(venv_python), "-c", check_code], env=runtime_env)
-    return venv_python
+    _run_cmd([str(runtime.python), "-c", check_code], env=runtime.env)
+    return runtime
 
 
 def _discover_gemini_key(skill_root: Path) -> str:
@@ -1673,21 +1818,22 @@ def main() -> int:
     skill_root = script_path.parent.parent
     cfg_path = _resolve_config_path(args.config, skill_root)
     active_venv = str(os.getenv("VIRTUAL_ENV", "")).strip()
-    if os.getenv(RUNTIME_ENV) == "1" or _using_managed_runtime_python(skill_root):
+    if os.getenv(RUNTIME_ENV) == "1" or _using_managed_runtime_python(skill_root) or str(os.getenv(RUNTIME_PYTHONPATH_ENV, "")).strip():
         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(_runtime_browser_dir(skill_root / ".runtime").resolve())
+        os.environ["PYTHONNOUSERSITE"] = "1"
 
     if os.getenv(RUNTIME_ENV) != "1" and not args.skip_bootstrap:
         if active_venv:
             print(
-                "[bootstrap] detected an active virtualenv, but using isolated skill runtime at .runtime/venv for consistency"
+                "[bootstrap] detected an active virtualenv, but using isolated skill runtime under .runtime for consistency"
             )
         cfg = _load_config(cfg_path)
-        venv_python = _ensure_runtime(skill_root, cfg, force_rebuild=args.force_rebuild_runtime)
+        runtime = _ensure_runtime(skill_root, cfg, force_rebuild=args.force_rebuild_runtime)
         if args.bootstrap_only:
-            print("[bootstrap] runtime ready")
+            print(f"[bootstrap] runtime ready: {runtime.location}")
             return 0
-        cmd = [str(venv_python), str(script_path), *sys.argv[1:]]
-        env = _managed_runtime_env(skill_root, base_env=os.environ.copy())
+        cmd = [str(runtime.python), str(script_path), *sys.argv[1:]]
+        env = runtime.env.copy()
         env[RUNTIME_ENV] = "1"
         print(f"[bootstrap] re-executing in managed runtime: {_cmd_as_str(cmd)}")
         proc = subprocess.run(cmd, env=env)
