@@ -1,77 +1,136 @@
 ---
 name: skill_master
-description: Self-contained workflow to clone an existing website URL into a single-file HTML replica using Gemini. Supports optional user instructions (short/vague OK) via built-in prompt-expander, automatic fallback when host Python lacks venv support, and an official Docker path for first-run isolation.
+description: Runs a self-contained website-cloning workflow that turns a source URL into a single-file HTML replica using Gemini, with optional instruction expansion, automatic runtime bootstrap, fallback when host Python lacks venv support, and a Docker path for clean first-run execution. Use whenever the user wants to clone, mirror, recreate, copy, or restyle an existing website from a URL.
 license: Apache-2.0
 ---
 
 # Skill Master
 
-Run a self-contained URL-to-replica pipeline with no dependency on external repository engine files.
+This skill runs a portable URL-to-replica pipeline without depending on external repository engine files.
 
-## Input
+At a high level, the workflow goes like this:
 
-- **URL** (required): Target webpage to clone
-- **Instructions** (optional): User preferences. If the brief is short or vague (e.g., "做成暗色主题", "简洁一点", "突出移动端"), the built-in prompt-expander will auto-expand it into a structured design brief. If the brief is already detailed, the skill will use it directly instead of expanding it again.
+- confirm the source URL and optional user instructions
+- bootstrap an isolated runtime or use the Docker path
+- capture the source page with a browser
+- prepare the final prompt, expanding short instructions only when needed
+- generate a single-file HTML replica with Gemini
+- write canonical artifacts and compatibility aliases
+- report success, output paths, or exact failure details
 
-## Stage System (Custom Naming)
+## Communicating With the User
+
+This skill may be used by people with very different levels of technical familiarity. Prefer concrete, practical language.
+
+- Explain whether the user should use the host-Python path or the Docker path.
+- Treat short style hints as valid input instead of demanding a long design brief.
+- If execution fails, identify the failing stage, the likely cause, and the next action.
+- Do not ask the user to manually activate `.runtime/venv` as part of the normal flow.
+
+If the user is unsure what to provide, help them supply:
+
+1. the source URL
+2. optional design instructions
+3. the desired output directory, if any
+4. confirmation that `GOOGLE_GEMINI_API_KEY` is available
+
+## Input Contract
+
+The workflow expects:
+
+- **URL**: required, the webpage to clone
+- **Instructions**: optional, for design direction or content emphasis
+- **Output directory**: optional, defaults to the standard output path if omitted
+- **API key**: required through `GOOGLE_GEMINI_API_KEY`
+
+Short instructions are acceptable. For example:
+
+- `make it darker and cleaner`
+- `emphasize mobile readability`
+- `turn this into an anime-style landing page`
+
+If the instructions are already detailed, use them directly. If they are short or vague, expand them into a structured brief first.
+
+## Stage System
+
+This skill intentionally uses the following stage names:
 
 - `capture-matrix`: browser capture, scrolling snapshot, stylesheet harvest, optional scroll video
-- `replica-forge`: Gemini generation of a single-file HTML replica (with optional expanded user instructions)
-- `artifact-sync`: canonical artifact writing + compatibility aliases
+- `replica-forge`: Gemini generation of a single-file HTML replica
+- `artifact-sync`: canonical artifact writing plus compatibility aliases
 
-This skill intentionally does not use old pass naming.
+When reporting status or failures, always refer to these stage names rather than older pass naming.
 
-## Plug-and-Play Runtime
+## Runtime Strategy
 
-The runner auto-handles:
-- local virtualenv creation in `.runtime/venv` when host Python can bootstrap `venv`
-- fallback package installation in `.runtime/site-packages` when host Python lacks `python3-venv` / `ensurepip`
-- Python dependency installation from `assets/requirements.txt`
-- reuse of an existing Chrome/Chromium/Playwright browser when available
-- Playwright Chromium installation in `.runtime/pw-browsers` only when no usable browser is already present
-- import checks for `google.genai` and `playwright` from the managed runtime path
+The runner is designed to be plug-and-play on a fresh machine.
+
+### Host Python Path
+
+The host-Python path automatically handles:
+
+- local virtual environment creation in `.runtime/venv` when `venv` can be bootstrapped
+- fallback package installation in `.runtime/site-packages` when `python3-venv` or `ensurepip` is missing
+- dependency installation from `assets/requirements.txt`
+- reuse of an existing Chrome, Chromium, or Playwright browser when available
+- Playwright Chromium installation in `.runtime/pw-browsers` when no usable browser is present
+- import checks for `google.genai` and `playwright`
 - browser launch verification
-- automatic runtime rebuild if a copied `.runtime/venv` is stale or machine-specific
+- automatic runtime rebuild when a copied runtime is stale or machine-specific
+
+### Docker Path
+
+The Docker path is the clean-room option for users who want a fully isolated first run.
+
+- it avoids host-Python `venv` differences
+- it uses the repository `Dockerfile`
+- it still writes clone outputs to a mounted directory on the host
+
+## Prerequisites
+
+Choose one runtime path:
+
+- Host path: Python 3.11+ with `pip`
+- Docker path: Docker with permission to build and run containers
+
+Additional requirements:
+
+- `venv` support is preferred but not required on the host path
+- outbound network access to PyPI, Playwright browser download endpoints, and the Gemini API
+- an OS environment capable of launching Chromium
+- write permission in the skill directory and the chosen output directory
+
+Required input:
+
+- `GOOGLE_GEMINI_API_KEY` through the environment or a local `.env` file
+
+Optional browser override:
+
+- `WEB_REPLICA_BROWSER_EXECUTABLE` to point to a specific Chrome or Chromium binary
 
 ## Quick Start
 
-Examples below use `python3`. If your machine exposes the launcher as `python`, substitute that command instead.
+Examples below use `python3`. If the machine exposes the launcher as `python`, substitute that command instead.
 
-From any working directory (project copy):
+From the repository root:
 
 ```bash
 python3 cloneit-web-cloning/scripts/clone_with_gemini.py "https://example.com"
 ```
 
-If this skill is unpacked elsewhere, run the script from that skill root:
+If this skill is unpacked elsewhere, run from the skill root:
 
 ```bash
 python3 scripts/clone_with_gemini.py "https://example.com"
 ```
 
-Do not manually `source .runtime/venv/bin/activate` as part of the normal user flow. Run the script with your system Python and let the runner create or repair `.runtime` automatically. If host Python lacks `venv` bootstrap support, the runner falls back to `.runtime/site-packages` instead of failing immediately.
+Normal users should not manually run:
 
-## Prerequisites
+```bash
+source .runtime/venv/bin/activate
+```
 
-- Host path A: Python 3.11+ with `pip` available
-- Host path B: Docker with permission to build and run containers
-- `venv` support is preferred but not required; when `ensurepip` / `python3-venv` is missing, the runner falls back to `.runtime/site-packages`
-- Outbound network access to:
-  - PyPI (for dependency bootstrap)
-  - Playwright browser download endpoints
-  - Gemini API
-- OS environment capable of running Chromium (Playwright)
-- Write permission in:
-  - skill directory (for `.runtime/venv`)
-  - skill directory (for `.runtime/site-packages`)
-  - skill directory (for `.runtime/pw-browsers`)
-  - chosen output directory
-
-Required input:
-- `GOOGLE_GEMINI_API_KEY` (env var or `.env` in current directory)
-
-Optional browser override:
-- `WEB_REPLICA_BROWSER_EXECUTABLE` lets advanced users point the runner at a specific Chrome/Chromium executable if auto-detection is not enough.
+The runner is responsible for creating, verifying, and repairing `.runtime` automatically.
 
 ## Docker Quick Start
 
@@ -87,26 +146,85 @@ docker run --rm -it --ipc=host \
   --out-dir /outputs/replica_demo
 ```
 
-This path avoids host-Python `venv` differences entirely. The image entrypoint already targets `scripts/clone_with_gemini.py`.
+Use this path when the host Python setup is unreliable or when the user wants the most isolated new-user test.
 
-## Environment Assumptions
+## Workflow
 
-- Existing virtualenvs are tolerated; this skill always uses its own isolated runtime by default.
-- Copied or stale managed runtimes are rebuilt automatically when the runner detects machine-specific breakage.
-- If host Python lacks `venv` bootstrap support, this skill installs dependencies into `.runtime/site-packages` and keeps using the system Python executable.
-- `.runtime/` is machine-local state and should be generated on the target computer instead of committed to git.
-- No repository engine structure is required; prompt/config resolution is relative to this skill directory.
-- No pre-created output folders are required.
+Run the cloning process in this order.
+
+### Step 1: Confirm The Request
+
+Capture:
+
+1. source URL
+2. optional instructions
+3. optional output directory
+4. whether the user wants host Python or Docker
+
+### Step 2: Bootstrap The Runtime
+
+On the host path, let the runner decide whether to use:
+
+- `.runtime/venv`, or
+- `.runtime/site-packages`
+
+Do not fail early just because `venv` support is missing. The fallback path exists specifically for this case.
+
+### Step 3: Capture The Source Page
+
+The `capture-matrix` stage should:
+
+- launch a usable browser
+- navigate to the target URL
+- perform the required scrolling
+- save a source snapshot
+- collect stylesheet information
+- optionally capture a scroll video
+
+### Step 4: Prepare User Instructions
+
+When `--instructions` is present:
+
+1. infer the likely website type from the URL and user brief
+2. decide whether the instructions need expansion
+3. expand short or vague instructions into a more structured design brief
+4. keep already detailed instructions as-is
+5. save the prepared prompt to `expanded_user_prompt.txt`
+6. pause for review only when `--confirm-expanded-prompt` is requested and auto-expansion actually occurred
+
+### Step 5: Generate The Replica
+
+The `replica-forge` stage should:
+
+- combine the captured source context with the prepared user prompt
+- call Gemini to generate a single-file HTML replica
+- preserve the intended layout and styling direction as closely as practical
+
+### Step 6: Write Artifacts
+
+The `artifact-sync` stage should:
+
+- write canonical outputs
+- write compatibility aliases
+- report final file paths clearly
+
+### Step 7: Report Results
+
+On success, report the main output files. On failure, report:
+
+1. the failing stage
+2. the exact command output or error text
+3. the most likely remediation path
 
 ## Common Commands
 
-Bootstrap/verify only:
+Bootstrap only:
 
 ```bash
 python3 cloneit-web-cloning/scripts/clone_with_gemini.py --bootstrap-only
 ```
 
-Runtime verification only:
+Verify runtime only:
 
 ```bash
 python3 cloneit-web-cloning/scripts/clone_with_gemini.py --verify-runtime
@@ -118,7 +236,7 @@ Force a clean runtime rebuild:
 python3 cloneit-web-cloning/scripts/clone_with_gemini.py --bootstrap-only --force-rebuild-runtime
 ```
 
-Clone with explicit output directory:
+Clone to an explicit output directory:
 
 ```bash
 python3 cloneit-web-cloning/scripts/clone_with_gemini.py \
@@ -134,70 +252,78 @@ python3 cloneit-web-cloning/scripts/clone_with_gemini.py \
   --no-include-video
 ```
 
-Clone with short/vague user instructions (prompt-expander will auto-expand them):
+Clone with short instructions:
 
 ```bash
 python3 cloneit-web-cloning/scripts/clone_with_gemini.py \
   "https://example.com" \
-  --instructions "做成暗色主题，简洁一点"
+  --instructions "make it dark and cleaner"
 ```
 
-Review the expanded prompt before clone generation:
+Review the expanded prompt before generation:
 
 ```bash
 python3 cloneit-web-cloning/scripts/clone_with_gemini.py \
   "https://example.com" \
-  --instructions "做成暗色主题，简洁一点" \
+  --instructions "make it dark and cleaner" \
   --confirm-expanded-prompt
 ```
 
-If you already reviewed `expanded_user_prompt.txt`, continue in non-interactive mode with:
+Approve the already reviewed expanded prompt in non-interactive mode:
 
 ```bash
 python3 cloneit-web-cloning/scripts/clone_with_gemini.py \
   "https://example.com" \
-  --instructions "做成暗色主题，简洁一点" \
+  --instructions "make it dark and cleaner" \
   --confirm-expanded-prompt \
   --approve-expanded-prompt
 ```
 
-## Bundled Prompts (Secret Sauce)
+## Prompt Expansion
 
-Prompt files are embedded in this skill:
+The prompt-expander is built into this skill.
+
+When expansion is needed, the prepared prompt should cover:
+
+- visual style
+- page sections
+- content details
+- interaction ideas
+- audience and tone
+
+This lets non-expert users provide short hints while still producing a stronger design brief for the final generation step.
+
+## Bundled Resources
+
+Prompt configuration and templates are bundled with this skill:
+
+- `assets/cloneit.skill.toml`
 - `assets/prompts/clone.system_prompt.txt`
 - `assets/prompts/clone.pass1.prompt_template.txt`
 
-The runner loads these from `assets/cloneit.skill.toml` by default, so prompt behavior is portable.
+The runner resolves these relative to the skill directory so the workflow remains portable.
 
-## Prompt Expander (Built-in)
+## Environment Assumptions
 
-When `--instructions` is provided, the skill:
-1. Infers website type from the source URL and user brief
-2. Automatically decides whether the brief needs expansion
-3. If the brief is short/vague, expands it into a structured prompt with:
-   - visual style
-   - page sections
-   - content details
-   - interactions
-   - audience and tone
-4. If the brief is already detailed, keeps the user's original brief and uses it directly
-5. Saves the prepared prompt as `expanded_user_prompt.txt`
-6. Optionally pauses for explicit user confirmation when `--confirm-expanded-prompt` is used and auto-expansion actually happened
-7. Injects the prepared prompt into the final clone prompt used by Gemini
-
-This allows non-expert users to give short hints like "暗色" or "简洁" and still get a professional design direction, while not over-processing already detailed prompts.
+- existing virtual environments are tolerated, but this skill prefers its own managed runtime
+- copied or stale managed runtimes may be rebuilt automatically
+- `.runtime/` is machine-local state and should be generated on the target machine rather than committed
+- no external repository engine layout is required
+- no pre-created output directory is required
 
 ## Artifact Contract
 
 Primary artifacts:
+
 - `run_manifest.txt`
 - `source_snapshot.png`
 - `source_styles.css`
-- `source_scroll.webm` (when enabled)
+- `source_scroll.webm` when enabled
 - `web_replica.html`
-- `expanded_user_prompt.txt` (when `--instructions` is provided; contains either the auto-expanded brief or the user's direct brief with a direct-use decision)
+- `expanded_user_prompt.txt` when `--instructions` is provided
 
-Compatibility aliases are also written:
+Compatibility aliases:
+
 - `output_manifest.txt`
 - `page_stitched.png`
 - `page_html_styles.css`
@@ -205,7 +331,49 @@ Compatibility aliases are also written:
 
 ## Failure Handling
 
-If execution fails, return:
-1. failing stage (`bootstrap`, `capture-matrix`, `replica-forge`, or `artifact-sync`)
-2. exact command output
-3. remediation steps (missing key, package install failure, browser install failure, network/site blocking)
+If execution fails, always return:
+
+1. the failing stage: `bootstrap`, `capture-matrix`, `replica-forge`, or `artifact-sync`
+2. the exact command output or error text
+3. the most likely remediation steps
+
+Typical remediation categories include:
+
+- missing API key
+- dependency bootstrap failure
+- browser install or launch failure
+- blocked network access
+- source site behavior that prevents reliable capture
+
+## Examples
+
+**Example 1:**
+
+Input: "Clone `https://example.com` and keep it visually close to the source."
+
+Expected behavior:
+
+- run the standard workflow
+- keep user instructions minimal because fidelity is the primary goal
+- return canonical artifact paths
+
+**Example 2:**
+
+Input: "Clone `https://example.com`, make it darker, simplify the layout, and let me review the expanded prompt first."
+
+Expected behavior:
+
+- prepare and save `expanded_user_prompt.txt`
+- pause for explicit review because confirmation was requested
+- continue generation only after approval
+
+## Summary Checklist
+
+Before considering the run complete, verify:
+
+- [ ] the source URL is correct
+- [ ] `GOOGLE_GEMINI_API_KEY` is available
+- [ ] the runtime path is clear: host Python or Docker
+- [ ] output files were written successfully
+- [ ] prompt expansion behavior matched the user's request
+- [ ] failures, if any, were reported with exact stage and remediation
