@@ -1,10 +1,10 @@
 ---
-name: skill_master
+name: skill
 description: Runs a self-contained website-cloning workflow that turns a source URL into a single-file HTML replica using Gemini, with optional instruction expansion, automatic runtime bootstrap, fallback when host Python lacks venv support, and a Docker path for clean first-run execution. Use whenever the user wants to clone, mirror, recreate, copy, or restyle an existing website from a URL.
 license: Apache-2.0
 ---
 
-# Skill Master
+# Skill
 
 This skill runs a portable URL-to-replica pipeline without depending on external repository engine files.
 
@@ -137,11 +137,11 @@ The runner is responsible for creating, verifying, and repairing `.runtime` auto
 From the repository root:
 
 ```bash
-docker build -t skill-master cloneit-web-cloning
+docker build -t skill cloneit-web-cloning
 docker run --rm -it --ipc=host \
   -e GOOGLE_GEMINI_API_KEY="$GOOGLE_GEMINI_API_KEY" \
   -v "$(pwd)/outputs:/outputs" \
-  skill-master \
+  skill \
   "https://example.com" \
   --out-dir /outputs/replica_demo
 ```
