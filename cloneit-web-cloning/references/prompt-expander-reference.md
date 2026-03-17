@@ -1,6 +1,6 @@
 # Prompt Expander Reference Library
 
-When users provide short/vague instructions (e.g., "做成暗色", "简洁一点", "突出移动端"), use this reference to expand them into specific, actionable guidance for the clone.
+When users provide short or vague instructions (for example, "make it dark", "simplify the layout", or "emphasize mobile readability"), use this reference to expand them into specific, actionable guidance for the clone.
 
 ## Infer Website Type from URL
 

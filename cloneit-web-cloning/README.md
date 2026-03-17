@@ -1,24 +1,20 @@
-# Skill
+# Skill - Website Cloning
 
-This folder packages the main website-cloning skill as a self-contained unit that is easy to push, share, and run.
+This folder contains a self-contained website-cloning skill that turns a source URL into a single-file HTML replica using Gemini.
 
-## What This Folder Contains
+## Package Contents
 
-- `SKILL.md`: the main skill definition
-- `scripts/clone_with_gemini.py`: the runtime entrypoint
-- `assets/`: prompts, configuration, and Python requirements
-- `references/`: supporting documentation
-- `Dockerfile`: isolated container path for first-run execution
-
-## What The Skill Does
-
-The skill clones a source website URL into a single-file HTML replica using Gemini. It supports:
-
-- automatic runtime bootstrap
-- fallback when host Python does not support `venv`
-- optional prompt expansion for short user instructions
-- browser capture and stylesheet extraction
-- canonical artifact output plus compatibility aliases
+- `README.md`: human-facing overview and quick-start guide
+- `SKILL.md`: agent-facing skill definition
+- `runtime.md`: managed runtime behavior and fallback rules
+- `docker.md`: Docker-based execution path
+- `prompt-expansion.md`: instruction expansion behavior
+- `artifacts.md`: stage names and output contract
+- `troubleshooting.md`: common failures and remediation
+- `scripts/clone_with_gemini.py`: workflow entrypoint
+- `assets/`: prompts, config, and Python requirements
+- `references/`: additional supporting documentation
+- `Dockerfile`: container image definition
 
 ## Quick Start
 
@@ -28,7 +24,7 @@ From the repository root:
 python3 cloneit-web-cloning/scripts/clone_with_gemini.py "https://example.com"
 ```
 
-If this folder is used on its own, run from inside the folder:
+From inside this folder:
 
 ```bash
 python3 scripts/clone_with_gemini.py "https://example.com"
@@ -37,25 +33,21 @@ python3 scripts/clone_with_gemini.py "https://example.com"
 ## Required Setup
 
 - Python 3.11+ with `pip`, or Docker
-- `GOOGLE_GEMINI_API_KEY` set in the environment or available in a local `.env`
+- `GOOGLE_GEMINI_API_KEY` set in the environment or provided through a local `.env`
 - network access to PyPI, Playwright downloads, and the Gemini API
 
-## Docker Path
+## Documentation
 
-```bash
-docker build -t skill .
-docker run --rm -it --ipc=host \
-  -e GOOGLE_GEMINI_API_KEY="$GOOGLE_GEMINI_API_KEY" \
-  -v "$(pwd)/../outputs:/outputs" \
-  skill \
-  "https://example.com" \
-  --out-dir /outputs/replica_demo
-```
+- [Runtime](runtime.md)
+- [Docker](docker.md)
+- [Prompt Expansion](prompt-expansion.md)
+- [Artifacts](artifacts.md)
+- [Troubleshooting](troubleshooting.md)
 
-## Recommended Push Scope
+## Folder Scope
 
-If you want to push only the main skill package, this folder is the unit to push:
+If you want to push the main cloning skill as a standalone package, push:
 
 - `cloneit-web-cloning/`
 
-That includes the skill file, README, scripts, prompts, references, and Docker setup needed by the workflow.
+This directory contains the skill definition, runtime entrypoint, prompts, docs, and Docker path needed by the workflow.
