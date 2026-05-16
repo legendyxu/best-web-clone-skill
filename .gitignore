@@ -1,9 +1,37 @@
-*.env
+# ─── Environment ───────────────────────────────────────────
+.env
 **/.env
-outputs/
+.env.example
+*.envrc
+
+# ─── Runtime artifacts ─────────────────────────────────────
 /.local-runtime/
 /cloneit-web-cloning/.runtime/
 /server.pid
+*.pid
+
+# ─── Test and output directories ──────────────────────────
+outputs/
 /test_*/
+/examples/output/
+
+# ─── Python cache ──────────────────────────────────────────
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# ─── IDE and OS files ─────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ─── Logs ──────────────────────────────────────────────────
+*.log

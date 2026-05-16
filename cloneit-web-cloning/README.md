@@ -5,7 +5,7 @@ This folder contains a self-contained website-cloning skill that turns a source 
 ## Package Contents
 
 - `README.md`: human-facing overview and quick-start guide
-- `SKILL.md`: agent-facing skill definition
+- `CLONE_SKILL.md`: agent-facing skill definition
 - `runtime.md`: managed runtime behavior and fallback rules
 - `docker.md`: Docker-based execution path
 - `prompt-expansion.md`: instruction expansion behavior
