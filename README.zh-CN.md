@@ -99,7 +99,7 @@ python3 cloneit-web-cloning/scripts/clone_with_gemini.py \
 
 | 场景 | 用内置 Expander（`clone-skill`） | 用独立 `expander-skill` |
 |---|---|---|
-| 有 URL，附带一句短风格描述 | ✅ 默认即可 | 不需要 |
+| 有 URL，并且有详细的 Prompt | ✅ 默认即可 | 不需要 |
 | 已有 URL，想直接出 HTML | ✅ | 不需要 |
 | **还没有 URL**，只有一个想法 | ❌ | ✅ 先扩展 Prompt |
 | 想在对话里**多轮修改**设计 brief | ❌ | ✅ 适合来回打磨 |
@@ -268,6 +268,7 @@ python3 cloneit-web-cloning/scripts/clone_with_gemini.py \
 - 交互元素保留（表单、弹窗）
 - 从克隆 HTML 导出 Figma
 - 更多语言的 README 支持
+- 进一步优化 `expander-skill`
 
 完整功能列表与已知问题请查看 [open issues](https://github.com/legendyxu/best-web-clone-skill/issues)。
 

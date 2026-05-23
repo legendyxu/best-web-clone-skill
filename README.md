@@ -99,7 +99,7 @@ The separate `expander-skill` (`EXPANDER_SKILL.md`) is optional. Use it when you
 
 | Scenario | Use built-in expander (`clone-skill`) | Use standalone `expander-skill` |
 |---|---|---|
-| Clone a URL with a short style hint | ✅ Default choice | Not needed |
+| Have a URL and a detailed prompt | ✅ Default choice | Not needed |
 | You already have a URL and want HTML now | ✅ | Not needed |
 | You only have an idea, **no URL yet** | ❌ | ✅ Expand the prompt first |
 | You want **multi-turn chat** to refine the brief | ❌ | ✅ Iterate in conversation |
@@ -268,6 +268,7 @@ After you approve the expanded brief in chat, pass it to `clone-skill` when you 
 - Interactive element preservation (forms, modals)
 - Figma export from cloned HTML
 - More language support in README
+- Further improve `expander-skill`
 
 See the [open issues](https://github.com/legendyxu/best-web-clone-skill/issues) for the full list of proposed features and known issues.
 
