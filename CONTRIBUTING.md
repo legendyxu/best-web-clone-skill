@@ -33,7 +33,7 @@ For non-security bugs:
 ## Suggesting Features
 
 1. **Open an issue** describing the feature and its use case.
-2. Indicate which skill it applies to: Clone, Bugfix, or Expander.
+2. Indicate which skill it applies to: Clone or Expander.
 3. If you have design ideas, include them.
 
 We welcome suggestions, but not all features will be accepted. Complex features may need discussion before implementation.

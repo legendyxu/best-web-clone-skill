@@ -1,170 +1,344 @@
-<div align="center">
-  <h1>Best Web Clone Skill</h1>
-  <p>
-    <b>A Cursor skill package that clones any website URL into a single-file HTML replica via Gemini,<br>
-    with built-in bug fixing and prompt expansion workflows.</b>
-  </p>
+<a id="readme-top"></a>
 
-  <!-- Badges -->
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache 2.0-blue.svg" alt="License"></a>
-  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11+-blue.svg" alt="Python 3.11+"></a>
-  <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/docker-ready-blue.svg" alt="Docker"></a>
-  <br>
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#skills">Skills</a> •
-  <a href="#workflow">Workflow</a> •
-  <a href="#license">License</a>
-</div>
+<!-- Hero -->
+<h1 align="center">🌐 Best Web Clone Skill</h1>
+
+<h3 align="center">Clone any website into a standalone single-file HTML page</h3>
+
+<p align="center">
+  <span style="color:#8b949e;font-size:14px;">Playwright capture · Gemini generation · Cursor Agent Skills</span>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/Playwright-Automation-2EAD33?style=flat-square&logo=playwright&logoColor=white" alt="Playwright">
+  <img src="https://img.shields.io/badge/Google-Gemini-4285F4?style=flat-square&logo=google&logoColor=white" alt="Gemini">
+  <img src="https://img.shields.io/badge/Cursor-Agent%20Skill-000000?style=flat-square&logo=cursor&logoColor=white" alt="Cursor">
+  <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker">
+</p>
+
+<p align="center">
+  <a href="README.md"><img src="https://img.shields.io/badge/lang-English-blue?style=flat-square" alt="English"></a>
+  <a href="README.zh-CN.md"><img src="https://img.shields.io/badge/lang-简体中文-red?style=flat-square" alt="简体中文"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/legendyxu" title="legendyxu"><img src="https://github.com/legendyxu.png?size=80" width="44" height="44" alt="legendyxu"></a>
+  &nbsp;
+  <a href="https://github.com/SteveRapeseed" title="SteveRapeseed"><img src="https://github.com/SteveRapeseed.png?size=80" width="44" height="44" alt="SteveRapeseed"></a>
+</p>
+
+<p align="center">
+  <sub>Built by <a href="https://github.com/legendyxu">legendyxu</a> & <a href="https://github.com/SteveRapeseed">SteveRapeseed</a></sub>
+</p>
 
 ---
 
-A portable, self-contained set of [Cursor](https://cursor.com) skills that turns a source URL into a single-file HTML replica. Designed to work on a fresh machine — automatically bootstraps its runtime, falls back when `venv` is missing, and also supports Docker for fully isolated execution.
+<a id="demo"></a>
 
-## Table of Contents
+## 📸 Demo
 
-- [Features](#features)
-- [Skills](#skills)
-- [Quick Start](#quick-start)
-- [Prerequisites](#prerequisites)
-- [Docker](#docker)
-- [Workflow](#workflow)
-- [Project Structure](#project-structure)
-- [License](#license)
+**Music Platform Clone** — cloned with prompt: `"Build a music website"`
 
-## Features
+<p align="center">
+  <img src="images/case1.png" alt="Music Platform Clone" width="960">
+</p>
 
-- **URL to HTML replica** — give it a URL and get back a self-contained HTML file
-- **Automated runtime bootstrap** — creates `.runtime/venv` or falls back to `.runtime/site-packages`
-- **Browser capture** — full-page scrolling snapshot, stylesheet extraction, optional video
-- **Smart prompt expansion** — short style hints become detailed design briefs
-- **Bugfix workflow** — diagnose and patch visual fidelity issues after cloning
-- **Two runtime paths** — host Python or Docker, same output contract
-- **Single-file output** — everything in one HTML file, with compatibility aliases
+**Luxury Travel Platform Clone** — cloned with prompt: `"Build a luxury travel website"`
 
-## Skills
+<p align="center">
+  <img src="images/case2.png" alt="Luxury Travel Clone" width="960">
+</p>
 
-| Skill | File | Purpose |
-|-------|------|---------|
-| **Clone** | [`cloneit-web-cloning/CLONE_SKILL.md`](cloneit-web-cloning/CLONE_SKILL.md) | Clone a URL into a single-file HTML replica via Gemini |
-| **Bugfix** | [`cloneit-web-bugfix/BUGFIX_SKILL.md`](cloneit-web-bugfix/BUGFIX_SKILL.md) | Diagnose and repair visual bugs in cloned websites |
-| **Expander** | [`.cursor/skills/prompt-expander/EXPANDER_SKILL.md`](.cursor/skills/prompt-expander/EXPANDER_SKILL.md) | Expand short user prompts into structured design briefs |
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Quick Start
+---
 
-```bash
-# Clone a website (from the repository root)
-python3 cloneit-web-cloning/scripts/clone_with_gemini.py "https://example.com"
+## 📖 About The Project
 
-# Clone with a design hint
-python3 cloneit-web-cloning/scripts/clone_with_gemini.py \
-  "https://example.com" \
-  --instructions "make it darker and cleaner"
+**Best Web Clone Skill** is a portable Agent Skill pack for [Cursor](https://cursor.sh) that turns any website URL into a single, browser-ready HTML file.
 
-# Review the expanded prompt before generating
-python3 cloneit-web-cloning/scripts/clone_with_gemini.py \
-  "https://example.com" \
-  --instructions "make it darker and cleaner" \
-  --confirm-expanded-prompt
-```
+It is **not** a traditional web scraper or static-site exporter. Instead, it runs a three-stage automated pipeline:
 
-> The runner auto-creates and manages the runtime — no need to run `pip install` or activate a virtual environment manually.
+1. **Capture** — Playwright opens the target page, takes full-page scrolling screenshots, extracts CSS, and optionally records a scroll video to trigger lazy-loaded content.
+2. **Generate** — Screenshots and page context are sent to Google Gemini, which reconstructs a high-fidelity HTML replica from the visual information.
+3. **Sync** — All output artifacts are written to disk: `web_replica.html`, `source_snapshot.png`, `source_styles.css`, and `run_manifest.txt`.
 
-## Prerequisites
+The skill pack includes two skills. **For most users, only `clone-skill` is required** — prompt expansion is already built into the clone pipeline.
 
-**Host path:**
+| Skill | Required? | Role |
+|---|---|---|
+| `clone-skill` | **Yes** | Main clone pipeline — capture, generate, sync |
+| `expander-skill` | Optional | Standalone Cursor Agent skill for prompt expansion **before** cloning |
 
-- Python 3.11+ with `pip`
-- `venv` support is preferred but not required — the runner falls back to `.runtime/site-packages` automatically
-- `GOOGLE_GEMINI_API_KEY` set in the environment or a `.env` file
-- Network access to PyPI, Playwright download endpoints, and the Gemini API
+### Built-in expander inside `clone-skill`
 
-**Docker path:**
+You do **not** need to call `expander-skill` separately for normal cloning.
 
-- Docker with permission to build and run containers
+When you pass `--instructions` (or a short creative prompt in Cursor), `clone_with_gemini.py` automatically:
 
-## Docker
+1. Infers the website type (music, travel, ecommerce, etc.)
+2. Decides whether your input is too short and needs expansion
+3. Expands it into a structured design brief
+4. Saves the result to `expanded_user_prompt.txt`
+5. Sends that brief to Gemini along with the page screenshot
+
+Example — this already runs the built-in expander:
 
 ```bash
-# Build
-docker build -t clone-skill cloneit-web-cloning
-
-# Run
-docker run --rm -it --ipc=host \
-  -e GOOGLE_GEMINI_API_KEY="$GOOGLE_GEMINI_API_KEY" \
-  -v "$(pwd)/outputs:/outputs" \
-  clone-skill \
+python3 cloneit-web-cloning/scripts/clone_with_gemini.py \
   "https://example.com" \
-  --out-dir /outputs/replica_demo
+  --instructions "Build a music website"
 ```
 
-The Docker path avoids host-Python `venv` differences entirely. It is the most isolated way to run the workflow.
+Use `--confirm-expanded-prompt` if you want to review the expanded brief before generation starts.
 
-## Workflow
+### When to use standalone `expander-skill`
 
-The clone skill runs through three named stages:
+The separate `expander-skill` (`EXPANDER_SKILL.md`) is optional. Use it when you want prompt expansion **outside** the clone command — typically in Cursor chat:
 
-```
-capture-matrix  →  replica-forge  →  artifact-sync
-```
+| Scenario | Use built-in expander (`clone-skill`) | Use standalone `expander-skill` |
+|---|---|---|
+| Clone a URL with a short style hint | ✅ Default choice | Not needed |
+| You already have a URL and want HTML now | ✅ | Not needed |
+| You only have an idea, **no URL yet** | ❌ | ✅ Expand the prompt first |
+| You want **multi-turn chat** to refine the brief | ❌ | ✅ Iterate in conversation |
+| You want to review/edit the prompt **before** any clone run | Optional (`--confirm-expanded-prompt`) | ✅ Better for back-and-forth editing |
+| You want output as a design brief only, **no HTML yet** | ❌ | ✅ |
 
-| Stage | What happens |
-|-------|-------------|
-| **capture-matrix** | Browser launches, navigates to the source URL, performs scrolling snapshots, collects stylesheets, and optionally records a video |
-| **replica-forge** | Captured context plus the user's instructions (auto-expanded if needed) are sent to Gemini, which generates a single-file HTML replica |
-| **artifact-sync** | Canonical outputs and compatibility aliases are written to the output directory |
+Standalone `expander-skill` gives the Cursor Agent richer reference material (`reference-library.md`) and a conversational workflow: classify → pull reference → extract constraints → build prompt → confirm with you.
 
-If a cloned page has visual issues, the bugfix skill offers a separate repair loop:
-
-```
-reproduce → classify → patch → validate → report
-```
-
-The expander skill, when invoked separately or triggered by a short input, follows:
+**Typical flow with standalone expander:**
 
 ```
-classify → pull reference → extract constraints → build prompt → confirm
+Expand this prompt: "Build a dark music streaming dashboard"
+→ review and edit the expanded brief in chat
+→ then run clone-skill with the approved prompt
 ```
 
-## Project Structure
+**Typical flow without standalone expander (most common):**
 
 ```
-best-web-clone-skill/
-├── README.md                          # This file
-├── LICENSE                            # Apache 2.0
-├── .gitignore
-├── cloneit-web-cloning/               # Main cloning skill package
-│   ├── CLONE_SKILL.md                 # Agent-facing skill definition
-│   ├── README.md                      # Package-level documentation
-│   ├── runtime.md                     # Managed runtime behavior
-│   ├── docker.md                      # Docker usage guide
-│   ├── prompt-expansion.md            # Instruction expansion behavior
-│   ├── artifacts.md                   # Stage names and output contracts
-│   ├── troubleshooting.md             # Common failure remediation
-│   ├── scripts/
-│   │   └── clone_with_gemini.py       # Workflow entrypoint
-│   ├── assets/
-│   │   ├── cloneit.skill.toml
-│   │   ├── requirements.txt
-│   │   └── prompts/
-│   ├── references/
-│   ├── Dockerfile
-│   └── .dockerignore
-├── cloneit-web-bugfix/                # Bugfix skill package
-│   ├── BUGFIX_SKILL.md
-│   └── references/
-│       └── bugfix-playbook.md
-└── .cursor/
-    └── skills/
-        └── prompt-expander/           # Prompt expander skill package
-            ├── EXPANDER_SKILL.md
-            └── reference-library.md
+Clone https://example.com — build a music website
+→ clone-skill expands the prompt automatically and generates HTML
 ```
 
-## Community
+**Use cases:** design reference, page archival, style remixing, rapid prototyping.
 
-- [Contributing Guidelines](CONTRIBUTING.md)
-- [Security Policy](SECURITY.md)
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## License
+---
 
-Distributed under the [Apache 2.0 License](LICENSE).
+## ✨ Features
+
+- **URL → Single-File HTML** — Input a URL, get a self-contained `.html` you can open offline with no server required.
+- **Three-Stage Pipeline** — `capture-matrix → replica-forge → artifact-sync`; each stage is isolated so failures are easy to locate.
+- **Deep Browser Capture** — Full-page scroll screenshots, CSS extraction, optional scroll recordings — lazy-loaded content included.
+- **Smart Prompt Expansion** — Short instructions like `"make it darker"` or `"build a music website"` are automatically expanded into complete design briefs before generation (built into `clone-skill`).
+- **Automatic Runtime Bootstrap** — Creates `.runtime/venv` automatically, or falls back to `.runtime/site-packages` when a venv is unavailable. No manual dependency setup.
+- **Dual Execution Paths** — Runs on host Python or inside Docker; output contract is identical either way.
+- **Complete Artifact Output** — Produces `web_replica.html`, `source_snapshot.png`, `source_styles.css`, `run_manifest.txt`, plus compatibility aliases.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+## 🛠 Built With
+
+| Category | Technology |
+|---|---|
+| Language & Runtime | Python 3.11+ (Docker image uses 3.12) |
+| Core Dependencies | `google-genai` (Gemini SDK), `playwright` (browser automation) |
+| AI Model | Google Gemini — default `gemini-3.1-pro-preview`, fallback `gemini-3.0-pro-preview` |
+| Browser Engine | Playwright + Chromium; Docker base image `mcr.microsoft.com/playwright/python:v1.58.0-noble` |
+| Configuration | TOML (`cloneit.skill.toml`), env vars / `.env` (`GOOGLE_GEMINI_API_KEY`) |
+| Containerization | Docker — entrypoint `clone_with_gemini.py` |
+| Agent Integration | Cursor Skill system (`CLONE_SKILL.md`, `EXPANDER_SKILL.md`) |
+| CI | GitHub Actions (Python 3.12, runtime bootstrap verification) |
+| License | Apache 2.0 |
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Python 3.11 or higher
+- A Google Gemini API key ([get one here](https://aistudio.google.com/app/apikey))
+- Cursor editor ([download](https://cursor.sh))
+- *(Optional)* Docker, if you prefer the containerized path
+
+### Installation
+
+1. **Clone the repo**
+
+   ```bash
+   git clone https://github.com/legendyxu/best-web-clone-skill.git
+   cd best-web-clone-skill
+   ```
+
+2. **Set your Gemini API key**
+
+   Create a `.env` file in the project root:
+
+   ```env
+   GOOGLE_GEMINI_API_KEY=your_api_key_here
+   ```
+
+3. **Install dependencies** *(the skill bootstraps automatically, but you can also do it manually)*
+
+   ```bash
+   pip install google-genai playwright
+   playwright install chromium
+   ```
+
+4. **Add skills to Cursor**
+
+   - **Required:** [`cloneit-web-cloning/CLONE_SKILL.md`](cloneit-web-cloning/CLONE_SKILL.md) — this is the main skill and already includes built-in prompt expansion.
+   - **Optional:** [`.cursor/skills/prompt-expander/EXPANDER_SKILL.md`](.cursor/skills/prompt-expander/EXPANDER_SKILL.md) — only if you want to expand prompts in Cursor chat **before** running a clone.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+## 💡 Usage
+
+### Basic clone
+
+In Cursor chat, invoke the clone skill with a URL:
+
+```
+Clone https://example.com
+```
+
+The skill will run the full pipeline and output:
+
+```
+outputs/
+├── web_replica.html       ← open this in your browser
+├── source_snapshot.png    ← full-page screenshot of the original
+├── source_styles.css      ← extracted CSS
+└── run_manifest.txt       ← pipeline run log
+```
+
+### With a creative prompt (built-in expander)
+
+```
+Clone https://example.com — make it dark mode with neon accents
+```
+
+Or from the command line:
+
+```bash
+python3 cloneit-web-cloning/scripts/clone_with_gemini.py \
+  "https://example.com" \
+  --instructions "make it dark mode with neon accents"
+```
+
+The clone pipeline expands your short instruction automatically and writes `expanded_user_prompt.txt` before calling Gemini. **You do not need `expander-skill` for this.**
+
+### Standalone expander (optional)
+
+Only use `expander-skill` when you want to shape the design brief **before** cloning — for example, when you do not have a target URL yet, or when you want several rounds of chat to refine the prompt:
+
+```
+Expand this prompt: "Build a luxury travel landing page with warm tones and a search-first hero"
+```
+
+After you approve the expanded brief in chat, pass it to `clone-skill` when you are ready to generate HTML.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+## 🗺 Roadmap
+
+### ✅ Completed
+
+- Core clone pipeline (capture → generate → sync)
+- Built-in prompt expansion in clone workflow
+- Docker execution path
+- GitHub Actions CI
+
+### 📋 Planned
+
+- Multi-page site cloning
+- Interactive element preservation (forms, modals)
+- Figma export from cloned HTML
+- More language support in README
+
+See the [open issues](https://github.com/legendyxu/best-web-clone-skill/issues) for the full list of proposed features and known issues.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+## 🤝 Contributing
+
+Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+
+**Before you start**, please read our [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md).
+
+### How to Contribute
+
+1. **Fork** the repository
+2. **Create a branch** for your change:
+   ```bash
+   git checkout -b feature/your-feature-name
+   # or for bug fixes:
+   git checkout -b fix/your-bug-description
+   ```
+3. **Make your changes** and stage specific files (avoid `git add .`):
+   ```bash
+   git add <file1> <file2>
+   git commit -m 'feat: add some amazing feature'
+   ```
+4. **Push** to your branch:
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+5. **Open a Pull Request** — describe what you changed and why.
+
+### Ways to Contribute
+
+- 🐛 **Report bugs** — open an [Issue](https://github.com/legendyxu/best-web-clone-skill/issues) with steps to reproduce
+- 💡 **Suggest features** — open an [Issue](https://github.com/legendyxu/best-web-clone-skill/issues) with the `enhancement` label
+- 📖 **Improve docs** — fix typos, clarify instructions, add examples
+- 🧪 **Write tests** — help improve coverage for the clone pipeline
+- 🌐 **Add clone examples** — share interesting sites you've cloned
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+## 📄 License
+
+Distributed under the Apache 2.0 License. See `LICENSE` for more information.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+## 📬 Contact
+
+**legendyxu** — [legendyxuzhihao@outlook.com](mailto:legendyxuzhihao@outlook.com) — [GitHub](https://github.com/legendyxu)
+
+**SteveRapeseed** — [steverapeseed@gmail.com](mailto:steverapeseed@gmail.com) — [GitHub](https://github.com/SteveRapeseed)
+
+Project Link: [https://github.com/legendyxu/best-web-clone-skill](https://github.com/legendyxu/best-web-clone-skill)
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+---
+
+## 🙏 Acknowledgments
+
+- [Google Gemini](https://deepmind.google/technologies/gemini/) — the multimodal AI powering the HTML generation
+- [Playwright](https://playwright.dev/) — browser automation and screenshot capture
+- [Shields.io](https://shields.io) — badges
+- [Cursor](https://cursor.sh) — the AI editor this skill is built for
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
