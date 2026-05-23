@@ -1,5 +1,7 @@
 [first_sentence]
 
+[user_instructions]
+
 ```copy behavior
 
 Do not miss a single section, I need you to copy every section and UI
